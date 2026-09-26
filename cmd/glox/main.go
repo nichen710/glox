@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"glox/pkg/scanner"
+	"glox/pkg/parser"
 )
 
 const (
@@ -48,9 +49,15 @@ func (g *Glox) Run(source string) {
 		return
 	}
 
-	// TODO: Implement parser
+	prsr := parser.NewParser(tokens)
+	expr, err := prsr.Parse()
+	if err != nil {
+		fmt.Printf("Parsing Error: %v\n", err)
+		return
+	}
+
 	if g.mode == ModeParsing {
-		fmt.Println("Parser not implemented yet.	")
+		fmt.Println(expr)
 		return
 	}
 
