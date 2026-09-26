@@ -7,8 +7,9 @@ import (
 	"log"
 	"os"
 
-	"glox/pkg/scanner"
+	"glox/pkg/interpreter"
 	"glox/pkg/parser"
+	"glox/pkg/scanner"
 )
 
 const (
@@ -20,9 +21,10 @@ const (
 
 type (
 	Glox struct {
-		mode   Mode
-		debug  bool
-		inRepl bool
+		mode        Mode
+		debug       bool
+		inRepl      bool
+		interpreter *interpreter.Interpreter
 	}
 
 	Mode string
@@ -30,7 +32,8 @@ type (
 
 func NewGlox(mode Mode) *Glox {
 	return &Glox{
-		mode: mode,
+		mode:        mode,
+		interpreter: interpreter.NewInterpreter(),
 	}
 }
 
@@ -67,8 +70,16 @@ func (g *Glox) Run(source string) {
 		return
 	}
 
-	// TODO: Implement interpreter
-	fmt.Println("Interpreter not implemented yet.")
+	// Execute expression evaluation
+	result, err := g.interpreter.Interpret(expr)
+	if err != nil {
+		fmt.Printf("Runtime Error: %v\n", err)
+		return
+	}
+
+	if result != nil {
+		fmt.Println(interpreter.Stringify(result))
+	}
 }
 
 func (g *Glox) RunFile(path string) {
