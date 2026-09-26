@@ -7,6 +7,7 @@ El Parser es el siguiente paso lógico despues de el scaneo. Los tokens son orde
 ## Diferencias de implementacion con PLOX
 
 - Manejo de errores adaptado al standar de Go. Como en el parser, el error se almacena en un campo en lugar de lanzarlo con raise. Esto introdujo la necesidad de checkeos en las llamadas recursivas de Expression para que, en caso de error, se deje de construir el árbol inválido.
+- Abstracción de operadores binarios: uso de la función `parseBinary` para desacoplar y evitar la duplicación de código en `equality`, `comparison`, `term` y `factor`.
 
 ## Test
 

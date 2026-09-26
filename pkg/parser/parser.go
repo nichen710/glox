@@ -20,6 +20,7 @@ func NewParser(tokens []token.Token) *Parser {
 	}
 }
 
+// Parser Public Methods
 func (p *Parser) Parse() (expression.Expression, error) {
 	expr := p.expression()
 	if p._error != nil {
@@ -29,96 +30,25 @@ func (p *Parser) Parse() (expression.Expression, error) {
 	return expr, nil
 }
 
+// Grammar Rules
 func (p *Parser) expression() expression.Expression {
 	return p.equality()
 }
 
 func (p *Parser) equality() expression.Expression {
-	expr := p.comparison()
-	if p._error != nil {
-		return nil
-	}
-
-	for p.match(token.BANG_EQUAL, token.EQUAL_EQUAL) {
-		operator := p.previous()
-		right := p.comparison()
-		if p._error != nil {
-			return nil
-		}
-		expr = expression.Binary{
-			Left:     expr,
-			Operator: operator,
-			Right:    right,
-		}
-	}
-
-	return expr
+	return p.parseBinary(p.comparison, token.BANG_EQUAL, token.EQUAL_EQUAL)
 }
 
 func (p *Parser) comparison() expression.Expression {
-	expr := p.term()
-	if p._error != nil {
-		return nil
-	}
-
-	for p.match(token.GREATER, token.GREATER_EQUAL, token.LESS, token.LESS_EQUAL) {
-		operator := p.previous()
-		right := p.term()
-		if p._error != nil {
-			return nil
-		}
-		expr = expression.Binary{
-			Left:     expr,
-			Operator: operator,
-			Right:    right,
-		}
-	}
-
-	return expr
+	return p.parseBinary(p.term, token.GREATER, token.GREATER_EQUAL, token.LESS, token.LESS_EQUAL)
 }
 
 func (p *Parser) term() expression.Expression {
-	expr := p.factor()
-	if p._error != nil {
-		return nil
-	}
-
-	for p.match(token.MINUS, token.PLUS) {
-		operator := p.previous()
-		right := p.factor()
-		if p._error != nil {
-			return nil
-		}
-		expr = expression.Binary{
-			Left:     expr,
-			Operator: operator,
-			Right:    right,
-		}
-	}
-
-	return expr
+	return p.parseBinary(p.factor, token.MINUS, token.PLUS)
 }
 
 func (p *Parser) factor() expression.Expression {
-	expr := p.unary()
-	if p._error != nil {
-		return nil
-	}
-
-	for p.match(token.SLASH, token.STAR) {
-		operator := p.previous()
-		right := p.unary()
-		if p._error != nil {
-			return nil
-		}
-		expr = expression.Binary{
-			Left:     expr,
-			Operator: operator,
-			Right:    right,
-		}
-	}
-
-	return expr
+	return p.parseBinary(p.unary, token.SLASH, token.STAR, token.PERCENT)
 }
 
 func (p *Parser) unary() expression.Expression {
@@ -168,22 +98,27 @@ func (p *Parser) primary() expression.Expression {
 	return nil
 }
 
-func (p *Parser) error(tok token.Token, message string) {
-	p._error = fmt.Errorf("[line %d] Error: %s\n", tok.Line, message)
-}
+// Helper methods
+func (p *Parser) parseBinary(nextLevel func() expression.Expression, types ...token.TokenType) expression.Expression {
+	expr := nextLevel()
+	if p._error != nil {
+		return nil
+	}
 
-// helper methods
+	for p.match(types...) {
+		operator := p.previous()
+		right := nextLevel()
+		if p._error != nil {
+			return nil
+		}
+		expr = expression.Binary{
+			Left:     expr,
+			Operator: operator,
+			Right:    right,
+		}
+	}
 
-func (p *Parser) peek() token.Token {
-	return p.tokens[p.current]
-}
-
-func (p *Parser) isAtEnd() bool {
-	return p.peek().Type == token.EOF
-}
-
-func (p *Parser) previous() token.Token {
-	return p.tokens[p.current-1]
+	return expr
 }
 
 func (p *Parser) match(types ...token.TokenType) bool {
@@ -208,4 +143,20 @@ func (p *Parser) advance() token.Token {
 		p.current++
 	}
 	return p.previous()
+}
+
+func (p *Parser) peek() token.Token {
+	return p.tokens[p.current]
+}
+
+func (p *Parser) previous() token.Token {
+	return p.tokens[p.current-1]
+}
+
+func (p *Parser) isAtEnd() bool {
+	return p.peek().Type == token.EOF
+}
+
+func (p *Parser) error(tok token.Token, message string) {
+	p._error = fmt.Errorf("[line %d] Error: %s\n", tok.Line, message)
 }

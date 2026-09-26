@@ -141,6 +141,51 @@ func TestParser_Binary(t *testing.T) {
 				Right:    expression.Literal{Value: 8.0},
 			},
 		},
+		{
+			name:  "modulo",
+			input: "10 % 3",
+			expected: expression.Binary{
+				Left:     expression.Literal{Value: 10.0},
+				Operator: token.Token{Type: token.PERCENT, Lexeme: "%", Line: 1},
+				Right:    expression.Literal{Value: 3.0},
+			},
+		},
+		{
+			name:  "equal equal",
+			input: "true == false",
+			expected: expression.Binary{
+				Left:     expression.Literal{Value: true},
+				Operator: token.Token{Type: token.EQUAL_EQUAL, Lexeme: "==", Line: 1},
+				Right:    expression.Literal{Value: false},
+			},
+		},
+		{
+			name:  "bang equal",
+			input: "1 != 2",
+			expected: expression.Binary{
+				Left:     expression.Literal{Value: 1.0},
+				Operator: token.Token{Type: token.BANG_EQUAL, Lexeme: "!=", Line: 1},
+				Right:    expression.Literal{Value: 2.0},
+			},
+		},
+		{
+			name:  "less and greater",
+			input: "1 < 2",
+			expected: expression.Binary{
+				Left:     expression.Literal{Value: 1.0},
+				Operator: token.Token{Type: token.LESS, Lexeme: "<", Line: 1},
+				Right:    expression.Literal{Value: 2.0},
+			},
+		},
+		{
+			name:  "less equal and greater equal",
+			input: "2 >= 1",
+			expected: expression.Binary{
+				Left:     expression.Literal{Value: 2.0},
+				Operator: token.Token{Type: token.GREATER_EQUAL, Lexeme: ">=", Line: 1},
+				Right:    expression.Literal{Value: 1.0},
+			},
+		},
 	}
 
 	for _, tt := range tests {
