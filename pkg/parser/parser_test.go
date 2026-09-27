@@ -347,6 +347,26 @@ func TestParser_ParseErrors(t *testing.T) {
 			name:  "missing right paren after if condition",
 			input: "if (true print 1;",
 		},
+		{
+			name:  "missing left paren after while",
+			input: "while true) print 1;",
+		},
+		{
+			name:  "missing right paren after while condition",
+			input: "while (true print 1;",
+		},
+		{
+			name:  "missing left paren after for",
+			input: "for ;;) print 1;",
+		},
+		{
+			name:  "missing semicolon after for condition",
+			input: "for (var i = 0; i < 10 print 1;",
+		},
+		{
+			name:  "missing right paren after for clauses",
+			input: "for (var i = 0; i < 10; i = i + 1 print 1;",
+		},
 	}
 
 	for _, tt := range errorCases {
@@ -698,3 +718,176 @@ func TestParser_IfStatements(t *testing.T) {
 		})
 	}
 }
+
+func TestParser_WhileStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "simple while",
+			input: "while (true) print 1;",
+			expected: []statement.Statement{
+				statement.While{
+					Condition: expression.Literal{Value: true},
+					Body: statement.Print{
+						Expression: expression.Literal{Value: 1.0},
+					},
+				},
+			},
+		},
+		{
+			name:  "while with block body",
+			input: "while (x < 10) { print x; }",
+			expected: []statement.Statement{
+				statement.While{
+					Condition: expression.Binary{
+						Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "x", Line: 1}},
+						Operator: token.Token{Type: token.LESS, Lexeme: "<", Line: 1},
+						Right:    expression.Literal{Value: 10.0},
+					},
+					Body: statement.Block{
+						Statements: []statement.Statement{
+							statement.Print{
+								Expression: expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "x", Line: 1}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_ForStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "standard for loop desugared",
+			input: "for (var i = 0; i < 10; i = i + 1) print i;",
+			expected: []statement.Statement{
+				statement.Block{
+					Statements: []statement.Statement{
+						statement.Var{
+							Name:        token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1},
+							Initializer: expression.Literal{Value: 0.0},
+						},
+						statement.While{
+							Condition: expression.Binary{
+								Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+								Operator: token.Token{Type: token.LESS, Lexeme: "<", Line: 1},
+								Right:    expression.Literal{Value: 10.0},
+							},
+							Body: statement.Block{
+								Statements: []statement.Statement{
+									statement.Print{
+										Expression: expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+									},
+									statement.ExpressionStatement{
+										Expression: expression.Assign{
+											Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1},
+											Value: expression.Binary{
+												Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+												Operator: token.Token{Type: token.PLUS, Lexeme: "+", Line: 1},
+												Right:    expression.Literal{Value: 1.0},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "for without initializer",
+			input: "for (; i < 10; i = i + 1) print i;",
+			expected: []statement.Statement{
+				statement.While{
+					Condition: expression.Binary{
+						Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+						Operator: token.Token{Type: token.LESS, Lexeme: "<", Line: 1},
+						Right:    expression.Literal{Value: 10.0},
+					},
+					Body: statement.Block{
+						Statements: []statement.Statement{
+							statement.Print{
+								Expression: expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+							},
+							statement.ExpressionStatement{
+								Expression: expression.Assign{
+									Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1},
+									Value: expression.Binary{
+										Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+										Operator: token.Token{Type: token.PLUS, Lexeme: "+", Line: 1},
+										Right:    expression.Literal{Value: 1.0},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "for without increment",
+			input: "for (var i = 0; i < 10;) print i;",
+			expected: []statement.Statement{
+				statement.Block{
+					Statements: []statement.Statement{
+						statement.Var{
+							Name:        token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1},
+							Initializer: expression.Literal{Value: 0.0},
+						},
+						statement.While{
+							Condition: expression.Binary{
+								Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+								Operator: token.Token{Type: token.LESS, Lexeme: "<", Line: 1},
+								Right:    expression.Literal{Value: 10.0},
+							},
+							Body: statement.Print{
+								Expression: expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "i", Line: 1}},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "for infinite empty clauses",
+			input: "for (;;) print 1;",
+			expected: []statement.Statement{
+				statement.While{
+					Condition: expression.Literal{Value: true},
+					Body: statement.Print{
+						Expression: expression.Literal{Value: 1.0},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+

@@ -66,4 +66,15 @@ func (i If) String() string {
 	return fmt.Sprintf("IF %s THEN %s ELSE %s", i.Condition, i.ThenBranch, i.ElseBranch)
 }
 
+// "while" "(" expression ")" statement
+type While struct {
+	Condition expression.Expression
+	Body      Statement
+}
+
+func (w While) String() string {
+	return fmt.Sprintf("WHILE %s DO %s", w.Condition, w.Body)
+}
+
+
 

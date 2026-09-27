@@ -79,6 +79,21 @@ func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
 			return i.Execute(s.ElseBranch)
 		}
 		return nil, nil
+	case statement.While:
+		for {
+			condition, err := i.Evaluate(s.Condition)
+			if err != nil {
+				return nil, err
+			}
+			if !isTruthy(condition) {
+				break
+			}
+			_, err = i.Execute(s.Body)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}

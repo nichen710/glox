@@ -24,6 +24,8 @@ func NewParser(tokens []token.Token) *Parser {
 			&VarFactory{},
 			&BlockFactory{},
 			&IfFactory{},
+			&WhileFactory{},
+			&ForFactory{},
 		},
 	}
 }

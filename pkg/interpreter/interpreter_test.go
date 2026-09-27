@@ -391,6 +391,72 @@ print a;
 `,
 			expectedOutput: "safe\n",
 		},
+		{
+			name: "while loop counter",
+			source: `
+var i = 0;
+while (i < 3) {
+    print i;
+    i = i + 1;
+}
+`,
+			expectedOutput: "0\n1\n2\n",
+		},
+		{
+			name: "while loop with false condition never executes body",
+			source: `
+var ran = false;
+while (false) {
+    ran = true;
+}
+print ran;
+`,
+			expectedOutput: "false\n",
+		},
+		{
+			name: "while loop block scope variables",
+			source: `
+var i = 0;
+while (i < 2) {
+    var msg = "item";
+    print msg;
+    i = i + 1;
+}
+`,
+			expectedOutput: "item\nitem\n",
+		},
+		{
+			name: "for loop standard iteration",
+			source: `
+for (var i = 0; i < 3; i = i + 1) {
+    print i;
+}
+`,
+			expectedOutput: "0\n1\n2\n",
+		},
+		{
+			name: "for loop without initializer or increment",
+			source: `
+var i = 0;
+for (; i < 3;) {
+    print i;
+    i = i + 1;
+}
+print i;
+`,
+			expectedOutput: "0\n1\n2\n3\n",
+		},
+		{
+			name: "for loop variable scope isolation",
+			source: `
+var i = "outer";
+for (var i = 0; i < 1; i = i + 1) {
+    print i;
+}
+print i;
+`,
+			expectedOutput: "0\nouter\n",
+		},
 	}
 
 	for _, tt := range tests {
