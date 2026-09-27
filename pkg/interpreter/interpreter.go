@@ -68,6 +68,17 @@ func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
 		return nil, nil
 	case statement.Block:
 		return i.executeBlock(s.Statements, environment.NewEnclosedEnvironment(i.environment))
+	case statement.If:
+		condition, err := i.Evaluate(s.Condition)
+		if err != nil {
+			return nil, err
+		}
+		if isTruthy(condition) {
+			return i.Execute(s.ThenBranch)
+		} else if s.ElseBranch != nil {
+			return i.Execute(s.ElseBranch)
+		}
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}
@@ -123,6 +134,22 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 			}
 		}
 		return val, nil
+	case expression.Logical:
+		left, err := i.Evaluate(e.Left)
+		if err != nil {
+			return nil, err
+		}
+		switch e.Operator.Type {
+		case token.OR:
+			if isTruthy(left) {
+				return left, nil
+			}
+		case token.AND:
+			if !isTruthy(left) {
+				return left, nil
+			}
+		}
+		return i.Evaluate(e.Right)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}

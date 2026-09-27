@@ -20,6 +20,7 @@ Para las pruebas se trataron de probar los casos de interes mediante test suites
 - Operadores aritmeticos (+, -, \*, /, %)
 - Concatenacion de cadenas
 - Operadores de comparacion e igualdad
+- Operadores logicos y cortocircuito
 - Evaluacion de verdad (truthiness)
 - Manejo de errores en runtime (tipos incompatibles, division y modulo por cero)
 - Ejecucion de sentencias

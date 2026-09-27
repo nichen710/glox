@@ -23,6 +23,7 @@ func NewParser(tokens []token.Token) *Parser {
 			&PrintFactory{},
 			&VarFactory{},
 			&BlockFactory{},
+			&IfFactory{},
 		},
 	}
 }
@@ -69,7 +70,7 @@ func (p *Parser) expression() expression.Expression {
 }
 
 func (p *Parser) assignment() expression.Expression {
-	expr := p.equality()
+	expr := p.or()
 	if p._error != nil {
 		return nil
 	}
@@ -93,6 +94,14 @@ func (p *Parser) assignment() expression.Expression {
 	}
 
 	return expr
+}
+
+func (p *Parser) or() expression.Expression {
+	return p.parseLogical(p.and, token.OR)
+}
+
+func (p *Parser) and() expression.Expression {
+	return p.parseLogical(p.equality, token.AND)
 }
 
 func (p *Parser) equality() expression.Expression {
@@ -176,6 +185,28 @@ func (p *Parser) parseBinary(nextLevel func() expression.Expression, types ...to
 			return nil
 		}
 		expr = expression.Binary{
+			Left:     expr,
+			Operator: operator,
+			Right:    right,
+		}
+	}
+
+	return expr
+}
+
+func (p *Parser) parseLogical(nextLevel func() expression.Expression, types ...token.TokenType) expression.Expression {
+	expr := nextLevel()
+	if p._error != nil {
+		return nil
+	}
+
+	for p.match(types...) {
+		operator := p.previous()
+		right := nextLevel()
+		if p._error != nil {
+			return nil
+		}
+		expr = expression.Logical{
 			Left:     expr,
 			Operator: operator,
 			Right:    right,

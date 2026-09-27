@@ -148,6 +148,31 @@ func TestInterpreter_ComparisonAndEquality(t *testing.T) {
 	}
 }
 
+func TestInterpreter_LogicalOperators(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected any
+	}{
+		{"or returns first truthy", `"hi" or 2`, "hi"},
+		{"or returns right if left falsey", `nil or "yes"`, "yes"},
+		{"or returns right if both falsey", `false or nil`, nil},
+		{"and returns left if falsey", `false and "no"`, false},
+		{"and returns left if nil", `nil and "no"`, nil},
+		{"and returns right if left truthy", `"hi" and "there"`, "there"},
+		{"and with numbers", `1 and 2`, 2.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustEvaluate(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("got %v (%T), want %v (%T)", got, got, tt.expected, tt.expected)
+			}
+		})
+	}
+}
+
 func TestInterpreter_RuntimeErrors(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -307,6 +332,64 @@ var x = 1;
 print x;
 `,
 			expectedOutput: "2\n2\n",
+		},
+		{
+			name: "if true executes then branch",
+			source: `
+if (true) print "yes";
+`,
+			expectedOutput: "yes\n",
+		},
+		{
+			name: "if false without else does not execute then branch",
+			source: `
+if (false) print "yes";
+`,
+			expectedOutput: "",
+		},
+		{
+			name: "if false with else executes else branch",
+			source: `
+if (false) print "yes"; else print "no";
+`,
+			expectedOutput: "no\n",
+		},
+		{
+			name: "if with block branches and scopes",
+			source: `
+var x = "global";
+if (true) {
+    var x = "local";
+    print x;
+}
+print x;
+`,
+			expectedOutput: "local\nglobal\n",
+		},
+		{
+			name: "dangling else binds to nearest if",
+			source: `
+if (true) if (false) print "bad"; else print "good";
+`,
+			expectedOutput: "good\n",
+		},
+		{
+			name: "logical or short circuits side effects",
+			source: `
+var a = "safe";
+true or (a = "modified");
+print a;
+`,
+			expectedOutput: "safe\n",
+		},
+		{
+			name: "logical and short circuits side effects",
+			source: `
+var a = "safe";
+false and (a = "modified");
+print a;
+`,
+			expectedOutput: "safe\n",
 		},
 	}
 

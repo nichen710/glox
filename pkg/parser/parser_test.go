@@ -339,6 +339,14 @@ func TestParser_ParseErrors(t *testing.T) {
 			name:  "missing closing brace in block",
 			input: "{ var x = 1;",
 		},
+		{
+			name:  "missing left paren after if",
+			input: "if true) print 1;",
+		},
+		{
+			name:  "missing right paren after if condition",
+			input: "if (true print 1;",
+		},
 	}
 
 	for _, tt := range errorCases {
@@ -539,6 +547,141 @@ func TestParser_BlockStatements(t *testing.T) {
 									Expression: expression.Literal{Value: 1.0},
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_LogicalExpressions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected expression.Expression
+	}{
+		{
+			name:  "simple or",
+			input: "a or b",
+			expected: expression.Logical{
+				Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1}},
+				Operator: token.Token{Type: token.OR, Lexeme: "or", Line: 1},
+				Right:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "b", Line: 1}},
+			},
+		},
+		{
+			name:  "simple and",
+			input: "a and b",
+			expected: expression.Logical{
+				Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1}},
+				Operator: token.Token{Type: token.AND, Lexeme: "and", Line: 1},
+				Right:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "b", Line: 1}},
+			},
+		},
+		{
+			name:  "or lower precedence than and",
+			input: "a or b and c",
+			expected: expression.Logical{
+				Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1}},
+				Operator: token.Token{Type: token.OR, Lexeme: "or", Line: 1},
+				Right: expression.Logical{
+					Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "b", Line: 1}},
+					Operator: token.Token{Type: token.AND, Lexeme: "and", Line: 1},
+					Right:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "c", Line: 1}},
+				},
+			},
+		},
+		{
+			name:  "and lower precedence than equality",
+			input: "a == b and c != d",
+			expected: expression.Logical{
+				Left: expression.Binary{
+					Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1}},
+					Operator: token.Token{Type: token.EQUAL_EQUAL, Lexeme: "==", Line: 1},
+					Right:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "b", Line: 1}},
+				},
+				Operator: token.Token{Type: token.AND, Lexeme: "and", Line: 1},
+				Right: expression.Binary{
+					Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "c", Line: 1}},
+					Operator: token.Token{Type: token.BANG_EQUAL, Lexeme: "!=", Line: 1},
+					Right:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "d", Line: 1}},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParse(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_IfStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "if without else",
+			input: "if (true) print 1;",
+			expected: []statement.Statement{
+				statement.If{
+					Condition: expression.Literal{Value: true},
+					ThenBranch: statement.Print{
+						Expression: expression.Literal{Value: 1.0},
+					},
+					ElseBranch: nil,
+				},
+			},
+		},
+		{
+			name:  "if with else",
+			input: "if (x > 0) print 1; else print 2;",
+			expected: []statement.Statement{
+				statement.If{
+					Condition: expression.Binary{
+						Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "x", Line: 1}},
+						Operator: token.Token{Type: token.GREATER, Lexeme: ">", Line: 1},
+						Right:    expression.Literal{Value: 0.0},
+					},
+					ThenBranch: statement.Print{
+						Expression: expression.Literal{Value: 1.0},
+					},
+					ElseBranch: statement.Print{
+						Expression: expression.Literal{Value: 2.0},
+					},
+				},
+			},
+		},
+		{
+			name:  "if with block branches",
+			input: "if (true) { print 1; } else { print 2; }",
+			expected: []statement.Statement{
+				statement.If{
+					Condition: expression.Literal{Value: true},
+					ThenBranch: statement.Block{
+						Statements: []statement.Statement{
+							statement.Print{Expression: expression.Literal{Value: 1.0}},
+						},
+					},
+					ElseBranch: statement.Block{
+						Statements: []statement.Statement{
+							statement.Print{Expression: expression.Literal{Value: 2.0}},
 						},
 					},
 				},
