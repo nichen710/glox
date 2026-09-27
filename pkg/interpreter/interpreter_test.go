@@ -161,6 +161,8 @@ func TestInterpreter_RuntimeErrors(t *testing.T) {
 		{"modulo by zero", "10 % 0", "Modulo by 0 is not allowed"},
 		{"relational on strings", `"a" < "b"`, "Operands of < must be numbers"},
 		{"statement runtime error", `print 1 + "a";`, "Operands of + must be either numbers or strings"},
+		{"reading undefined variable", "print x;", "Undefined variable 'x'."},
+		{"assigning undefined variable", "x = 10;", "Undefined variable 'x'."},
 	}
 
 	for _, tt := range tests {
@@ -233,6 +235,31 @@ func TestInterpreter_Statements(t *testing.T) {
 			name:           "expression statement produces no print output",
 			source:         "100 + 1;",
 			expectedOutput: "",
+		},
+		{
+			name:           "var declaration without initializer defaults to nil",
+			source:         "var a; print a;",
+			expectedOutput: "nil\n",
+		},
+		{
+			name:           "var declaration with initializer",
+			source:         "var a = 42; print a;",
+			expectedOutput: "42\n",
+		},
+		{
+			name:           "variable assignment and reassignment",
+			source:         "var a = 1; a = 2; print a;",
+			expectedOutput: "2\n",
+		},
+		{
+			name:           "variables in binary expression",
+			source:         "var a = 5; var b = 10; print a + b;",
+			expectedOutput: "15\n",
+		},
+		{
+			name:           "assignment expression returns assigned value",
+			source:         "var a = 1; print a = 2;",
+			expectedOutput: "2\n",
 		},
 	}
 

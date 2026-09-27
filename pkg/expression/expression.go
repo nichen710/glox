@@ -60,3 +60,23 @@ func (l Literal) String() string {
 		return fmt.Sprintf("<%v>", v)
 	}
 }
+
+// IDENTIFIER
+type Variable struct {
+	Name token.Token
+}
+
+func (v Variable) String() string {
+	return fmt.Sprintf("<%s>", v.Name.Lexeme)
+}
+
+// IDENTIFIER "=" expression
+type Assign struct {
+	Name  token.Token
+	Value Expression
+}
+
+func (a Assign) String() string {
+	return fmt.Sprintf("%s = %s", a.Name.Lexeme, a.Value)
+}
+

@@ -323,6 +323,18 @@ func TestParser_ParseErrors(t *testing.T) {
 			name:  "missing semicolon after expression",
 			input: "42 + 1",
 		},
+		{
+			name:  "missing variable name in var declaration",
+			input: "var;",
+		},
+		{
+			name:  "missing semicolon in var declaration",
+			input: "var x",
+		},
+		{
+			name:  "invalid assignment target",
+			input: "1 + 2 = 3;",
+		},
 	}
 
 	for _, tt := range errorCases {
@@ -353,7 +365,7 @@ func mustParseStatements(t *testing.T, source string) []statement.Statement {
 	return stmts
 }
 
-func TestParser_Statements(t *testing.T) {
+func TestParser_PrintStatements(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -414,6 +426,62 @@ func TestParser_Statements(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_VariablesAndAssignment(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected expression.Expression
+	}{
+		{
+			name:  "variable identifier",
+			input: "x",
+			expected: expression.Variable{
+				Name: token.Token{Type: token.IDENTIFIER, Lexeme: "x", Line: 1},
+			},
+		},
+		{
+			name:  "variable assignment",
+			input: "x = 42",
+			expected: expression.Assign{
+				Name:  token.Token{Type: token.IDENTIFIER, Lexeme: "x", Line: 1},
+				Value: expression.Literal{Value: 42.0},
+			},
+		},
+		{
+			name:  "assignment with complex expression",
+			input: "x = 1 + 2",
+			expected: expression.Assign{
+				Name: token.Token{Type: token.IDENTIFIER, Lexeme: "x", Line: 1},
+				Value: expression.Binary{
+					Left:     expression.Literal{Value: 1.0},
+					Operator: token.Token{Type: token.PLUS, Lexeme: "+", Line: 1},
+					Right:    expression.Literal{Value: 2.0},
+				},
+			},
+		},
+		{
+			name:  "chained assignment",
+			input: "a = b = 10",
+			expected: expression.Assign{
+				Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1},
+				Value: expression.Assign{
+					Name:  token.Token{Type: token.IDENTIFIER, Lexeme: "b", Line: 1},
+					Value: expression.Literal{Value: 10.0},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParse(t, tt.input)
 			if !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("got %#v, want %#v", got, tt.expected)
 			}

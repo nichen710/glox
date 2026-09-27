@@ -21,6 +21,7 @@ func NewParser(tokens []token.Token) *Parser {
 		current: 0,
 		factories: []StatementFactory{
 			&PrintFactory{},
+			&VarFactory{},
 		},
 	}
 }
@@ -63,7 +64,34 @@ func (p *Parser) expressionStatement() (statement.Statement, error) {
 
 // Grammar Rules
 func (p *Parser) expression() expression.Expression {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() expression.Expression {
+	expr := p.equality()
+	if p._error != nil {
+		return nil
+	}
+
+	if p.match(token.EQUAL) {
+		equals := p.previous()
+		value := p.assignment()
+		if p._error != nil {
+			return nil
+		}
+
+		if variable, ok := expr.(expression.Variable); ok {
+			return expression.Assign{
+				Name:  variable.Name,
+				Value: value,
+			}
+		}
+
+		p.error(equals, "Invalid assignment target.")
+		return nil
+	}
+
+	return expr
 }
 
 func (p *Parser) equality() expression.Expression {
@@ -123,6 +151,10 @@ func (p *Parser) primary() expression.Expression {
 			return nil
 		}
 		return expression.Grouping{Expression: expr}
+	}
+
+	if p.match(token.IDENTIFIER) {
+		return expression.Variable{Name: p.previous()}
 	}
 
 	p.error(p.peek(), "Expected expression. Got "+p.peek().Lexeme+".")

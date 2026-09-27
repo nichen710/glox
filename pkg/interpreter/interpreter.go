@@ -6,18 +6,21 @@ import (
 	"math"
 	"os"
 
+	"glox/pkg/environment"
 	"glox/pkg/expression"
 	"glox/pkg/statement"
 	"glox/pkg/token"
 )
 
 type Interpreter struct {
-	out io.Writer
+	out         io.Writer
+	environment *environment.Environment
 }
 
 func NewInterpreter() *Interpreter {
 	return &Interpreter{
-		out: os.Stdout,
+		out:         os.Stdout,
+		environment: environment.NewEnvironment(),
 	}
 }
 
@@ -52,6 +55,17 @@ func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
 		return nil, nil
 	case statement.ExpressionStatement:
 		return i.Evaluate(s.Expression)
+	case statement.Var:
+		var val any
+		var err error
+		if s.Initializer != nil {
+			val, err = i.Evaluate(s.Initializer)
+			if err != nil {
+				return nil, err
+			}
+		}
+		i.environment.Define(s.Name.Lexeme, val)
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}
@@ -67,6 +81,28 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 		return i.evaluateUnary(e)
 	case expression.Binary:
 		return i.evaluateBinary(e)
+	case expression.Variable:
+		val, err := i.environment.Get(e.Name)
+		if err != nil {
+			return nil, &RuntimeError{
+				Token:   e.Name,
+				Message: err.Error(),
+			}
+		}
+		return val, nil
+	case expression.Assign:
+		val, err := i.Evaluate(e.Value)
+		if err != nil {
+			return nil, err
+		}
+		err = i.environment.Assign(e.Name, val)
+		if err != nil {
+			return nil, &RuntimeError{
+				Token:   e.Name,
+				Message: err.Error(),
+			}
+		}
+		return val, nil
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}
