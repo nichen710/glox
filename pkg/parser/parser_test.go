@@ -367,6 +367,30 @@ func TestParser_ParseErrors(t *testing.T) {
 			name:  "missing right paren after for clauses",
 			input: "for (var i = 0; i < 10; i = i + 1 print 1;",
 		},
+		{
+			name:  "missing function name",
+			input: "fun () {}",
+		},
+		{
+			name:  "missing left paren after function name",
+			input: "fun foo {}",
+		},
+		{
+			name:  "missing right paren after parameters",
+			input: "fun foo(a, b {}",
+		},
+		{
+			name:  "missing left brace before function body",
+			input: "fun foo();",
+		},
+		{
+			name:  "missing right paren after arguments",
+			input: "foo(1, 2;",
+		},
+		{
+			name:  "missing semicolon after return",
+			input: "return 1",
+		},
 	}
 
 	for _, tt := range errorCases {
@@ -890,4 +914,161 @@ func TestParser_ForStatements(t *testing.T) {
 		})
 	}
 }
+
+func TestParser_FunctionDeclarations(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "function without parameters",
+			input: "fun foo() { print 1; }",
+			expected: []statement.Statement{
+				statement.Function{
+					Name:   token.Token{Type: token.IDENTIFIER, Lexeme: "foo", Line: 1},
+					Params: nil,
+					Body: []statement.Statement{
+						statement.Print{Expression: expression.Literal{Value: 1.0}},
+					},
+				},
+			},
+		},
+		{
+			name:  "function with parameters",
+			input: "fun add(a, b) { return a + b; }",
+			expected: []statement.Statement{
+				statement.Function{
+					Name: token.Token{Type: token.IDENTIFIER, Lexeme: "add", Line: 1},
+					Params: []token.Token{
+						{Type: token.IDENTIFIER, Lexeme: "a", Line: 1},
+						{Type: token.IDENTIFIER, Lexeme: "b", Line: 1},
+					},
+					Body: []statement.Statement{
+						statement.Return{
+							Keyword: token.Token{Type: token.RETURN, Lexeme: "return", Line: 1},
+							Value: expression.Binary{
+								Left:     expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1}},
+								Operator: token.Token{Type: token.PLUS, Lexeme: "+", Line: 1},
+								Right:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "b", Line: 1}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_CallExpressions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected expression.Expression
+	}{
+		{
+			name:  "call without arguments",
+			input: "foo()",
+			expected: expression.Call{
+				Callee:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "foo", Line: 1}},
+				Paren:     token.Token{Type: token.RIGHT_PAREN, Lexeme: ")", Line: 1},
+				Arguments: nil,
+			},
+		},
+		{
+			name:  "call with arguments",
+			input: "add(1, 2)",
+			expected: expression.Call{
+				Callee: expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "add", Line: 1}},
+				Paren:  token.Token{Type: token.RIGHT_PAREN, Lexeme: ")", Line: 1},
+				Arguments: []expression.Expression{
+					expression.Literal{Value: 1.0},
+					expression.Literal{Value: 2.0},
+				},
+			},
+		},
+		{
+			name:  "chained calls",
+			input: "foo()()",
+			expected: expression.Call{
+				Callee: expression.Call{
+					Callee:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "foo", Line: 1}},
+					Paren:     token.Token{Type: token.RIGHT_PAREN, Lexeme: ")", Line: 1},
+					Arguments: nil,
+				},
+				Paren:     token.Token{Type: token.RIGHT_PAREN, Lexeme: ")", Line: 1},
+				Arguments: nil,
+			},
+		},
+		{
+			name:  "unary call",
+			input: "!isReady()",
+			expected: expression.Unary{
+				Operator: token.Token{Type: token.BANG, Lexeme: "!", Line: 1},
+				Right: expression.Call{
+					Callee:    expression.Variable{Name: token.Token{Type: token.IDENTIFIER, Lexeme: "isReady", Line: 1}},
+					Paren:     token.Token{Type: token.RIGHT_PAREN, Lexeme: ")", Line: 1},
+					Arguments: nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParse(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_ReturnStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "return without value",
+			input: "return;",
+			expected: []statement.Statement{
+				statement.Return{
+					Keyword: token.Token{Type: token.RETURN, Lexeme: "return", Line: 1},
+					Value:   nil,
+				},
+			},
+		},
+		{
+			name:  "return with value",
+			input: "return 42;",
+			expected: []statement.Statement{
+				statement.Return{
+					Keyword: token.Token{Type: token.RETURN, Lexeme: "return", Line: 1},
+					Value:   expression.Literal{Value: 42.0},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
 

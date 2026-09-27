@@ -76,5 +76,38 @@ func (w While) String() string {
 	return fmt.Sprintf("WHILE %s DO %s", w.Condition, w.Body)
 }
 
+// "fun" IDENTIFIER "(" parameters? ")" block
+type Function struct {
+	Name   token.Token
+	Params []token.Token
+	Body   []Statement
+}
+
+func (f Function) String() string {
+	params := make([]string, len(f.Params))
+	for i, param := range f.Params {
+		params[i] = param.Lexeme
+	}
+	bodyParts := make([]string, len(f.Body))
+	for i, stmt := range f.Body {
+		bodyParts[i] = stmt.String()
+	}
+	return fmt.Sprintf("FUN fn<%s(%s)> { %s }", f.Name.Lexeme, strings.Join(params, ", "), strings.Join(bodyParts, "; "))
+}
+
+// "return" expression? ";"
+type Return struct {
+	Keyword token.Token
+	Value   expression.Expression
+}
+
+func (r Return) String() string {
+	if r.Value == nil {
+		return "RETURN NIL"
+	}
+	return fmt.Sprintf("RETURN %s", r.Value)
+}
+
+
 
 

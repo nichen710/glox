@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"time"
 
 	"glox/pkg/environment"
 	"glox/pkg/expression"
@@ -14,13 +15,20 @@ import (
 
 type Interpreter struct {
 	out         io.Writer
+	globals     *environment.Environment
 	environment *environment.Environment
 }
 
 func NewInterpreter() *Interpreter {
+	globals := environment.NewEnvironment()
+	globals.Define("clock", NewNativeFunction("clock", 0, func(interpreter *Interpreter, arguments []any) (any, error) {
+		return float64(time.Now().UnixNano()) / 1e9, nil
+	}))
+
 	return &Interpreter{
 		out:         os.Stdout,
-		environment: environment.NewEnvironment(),
+		globals:     globals,
+		environment: globals,
 	}
 }
 
@@ -33,6 +41,9 @@ func (i *Interpreter) Interpret(statements []statement.Statement) (any, error) {
 	for _, stmt := range statements {
 		val, err := i.Execute(stmt)
 		if err != nil {
+			if ret, ok := err.(*ReturnSignal); ok {
+				return ret.Value, nil
+			}
 			return nil, err
 		}
 		last = val
@@ -94,6 +105,20 @@ func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
 			}
 		}
 		return nil, nil
+	case statement.Function:
+		function := NewLoxFunction(s, i.environment)
+		i.environment.Define(s.Name.Lexeme, function)
+		return nil, nil
+	case statement.Return:
+		var val any
+		var err error
+		if s.Value != nil {
+			val, err = i.Evaluate(s.Value)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nil, &ReturnSignal{Value: val}
 	default:
 		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}
@@ -165,6 +190,37 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 			}
 		}
 		return i.Evaluate(e.Right)
+	case expression.Call:
+		callee, err := i.Evaluate(e.Callee)
+		if err != nil {
+			return nil, err
+		}
+
+		arguments := make([]any, 0, len(e.Arguments))
+		for _, argExpr := range e.Arguments {
+			argVal, err := i.Evaluate(argExpr)
+			if err != nil {
+				return nil, err
+			}
+			arguments = append(arguments, argVal)
+		}
+
+		function, ok := callee.(Callable)
+		if !ok {
+			return nil, &RuntimeError{
+				Token:   e.Paren,
+				Message: "Can only call functions and classes.",
+			}
+		}
+
+		if len(arguments) != function.Arity() {
+			return nil, &RuntimeError{
+				Token:   e.Paren,
+				Message: fmt.Sprintf("Expected %d arguments but got %d.", function.Arity(), len(arguments)),
+			}
+		}
+
+		return function.Call(i, arguments)
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}

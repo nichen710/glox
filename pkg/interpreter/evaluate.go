@@ -40,6 +40,8 @@ func Stringify(value any) string {
 		return "false"
 	case string:
 		return v
+	case Callable:
+		return v.String()
 	default:
 		return fmt.Sprintf("%v", v)
 	}

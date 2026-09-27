@@ -190,6 +190,9 @@ func TestInterpreter_RuntimeErrors(t *testing.T) {
 		{"reading undefined variable", "print x;", "Undefined variable 'x'."},
 		{"assigning undefined variable", "x = 10;", "Undefined variable 'x'."},
 		{"accessing inner block variable from outer scope", "{ var inner = 123; } print inner;", "Undefined variable 'inner'."},
+		{"calling non-callable", `"hello"();`, "Can only call functions and classes."},
+		{"call arity too few", `fun add(a, b) { return a + b; } add(1);`, "Expected 2 arguments but got 1."},
+		{"call arity too many", `fun add(a, b) { return a + b; } add(1, 2, 3);`, "Expected 2 arguments but got 3."},
 	}
 
 	for _, tt := range tests {
@@ -457,6 +460,90 @@ print i;
 `,
 			expectedOutput: "0\nouter\n",
 		},
+		{
+			name: "function declaration and call with print",
+			source: `
+fun sayHello(name) {
+    print "hello " + name;
+}
+sayHello("world");
+`,
+			expectedOutput: "hello world\n",
+		},
+		{
+			name: "function without return defaults to nil",
+			source: `
+fun noReturn() {}
+print noReturn();
+`,
+			expectedOutput: "nil\n",
+		},
+		{
+			name: "function return with value",
+			source: `
+fun add(a, b) {
+    return a + b;
+}
+print add(3, 4);
+`,
+			expectedOutput: "7\n",
+		},
+		{
+			name: "function early return in conditional",
+			source: `
+fun check(n) {
+    if (n < 0) return "negative";
+    return "non-negative";
+}
+print check(-5);
+print check(5);
+`,
+			expectedOutput: "negative\nnon-negative\n",
+		},
+		{
+			name: "recursive fibonacci",
+			source: `
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n - 2) + fib(n - 1);
+}
+print fib(7);
+`,
+			expectedOutput: "13\n",
+		},
+		{
+			name: "nested function closure preserves state",
+			source: `
+fun makeCounter() {
+    var count = 0;
+    fun increment() {
+        count = count + 1;
+        return count;
+    }
+    return increment;
+}
+var counter1 = makeCounter();
+var counter2 = makeCounter();
+print counter1();
+print counter1();
+print counter2();
+print counter1();
+`,
+			expectedOutput: "1\n2\n1\n3\n",
+		},
+		{
+			name: "function as first-class value",
+			source: `
+fun apply(fn, x) {
+    return fn(x);
+}
+fun double(x) {
+    return x * 2;
+}
+print apply(double, 21);
+`,
+			expectedOutput: "42\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -471,5 +558,16 @@ print i;
 				t.Errorf("got %q, want %q", buf.String(), tt.expectedOutput)
 			}
 		})
+	}
+}
+
+func TestInterpreter_NativeClock(t *testing.T) {
+	val := mustEvaluate(t, "clock()")
+	num, ok := val.(float64)
+	if !ok {
+		t.Fatalf("expected clock() to return float64, got %T (%v)", val, val)
+	}
+	if num <= 0 {
+		t.Errorf("expected positive timestamp, got %v", num)
 	}
 }

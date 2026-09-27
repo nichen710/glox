@@ -26,6 +26,8 @@ func NewParser(tokens []token.Token) *Parser {
 			&IfFactory{},
 			&WhileFactory{},
 			&ForFactory{},
+			&FunctionFactory{},
+			&ReturnFactory{},
 		},
 	}
 }
@@ -135,7 +137,58 @@ func (p *Parser) unary() expression.Expression {
 		}
 	}
 
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) call() expression.Expression {
+	expr := p.primary()
+	if p._error != nil {
+		return nil
+	}
+
+	for {
+		if p.match(token.LEFT_PAREN) {
+			expr = p.finishCall(expr)
+			if p._error != nil {
+				return nil
+			}
+		} else {
+			break
+		}
+	}
+
+	return expr
+}
+
+func (p *Parser) finishCall(callee expression.Expression) expression.Expression {
+	var arguments []expression.Expression
+	if !p.check(token.RIGHT_PAREN) {
+		for {
+			if len(arguments) >= 255 {
+				p.error(p.peek(), "Can't have more than 255 arguments.")
+				return nil
+			}
+			arg := p.expression()
+			if p._error != nil {
+				return nil
+			}
+			arguments = append(arguments, arg)
+			if !p.match(token.COMMA) {
+				break
+			}
+		}
+	}
+
+	if !p.match(token.RIGHT_PAREN) {
+		p.error(p.peek(), "Expected ')' after arguments. Got "+p.peek().Lexeme+".")
+		return nil
+	}
+
+	return expression.Call{
+		Callee:    callee,
+		Paren:     p.previous(),
+		Arguments: arguments,
+	}
 }
 
 func (p *Parser) primary() expression.Expression {
