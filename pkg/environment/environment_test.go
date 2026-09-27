@@ -111,3 +111,97 @@ func TestEnvironment_UndefinedErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvironment_EnclosingScopes(t *testing.T) {
+	tests := []struct {
+		name      string
+		varName   string
+		parentVal any
+		childVal  any
+		assignVal any
+		lookupIn  string // "child" or "parent"
+		expected  any
+		expectErr bool
+	}{
+		{
+			name:      "read variable from enclosing environment",
+			varName:   "x",
+			parentVal: 10.0,
+			lookupIn:  "child",
+			expected:  10.0,
+		},
+		{
+			name:      "shadowing variable in child returns child value",
+			varName:   "x",
+			parentVal: "global",
+			childVal:  "local",
+			lookupIn:  "child",
+			expected:  "local",
+		},
+		{
+			name:      "shadowing variable in child preserves parent value",
+			varName:   "x",
+			parentVal: "global",
+			childVal:  "local",
+			lookupIn:  "parent",
+			expected:  "global",
+		},
+		{
+			name:      "assigning from child updates parent variable",
+			varName:   "x",
+			parentVal: 1.0,
+			assignVal: 2.0,
+			lookupIn:  "parent",
+			expected:  2.0,
+		},
+		{
+			name:      "child variable is not visible in parent",
+			varName:   "inner",
+			childVal:  "value",
+			lookupIn:  "parent",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parent := NewEnvironment()
+			if tt.parentVal != nil {
+				parent.Define(tt.varName, tt.parentVal)
+			}
+
+			child := NewEnclosedEnvironment(parent)
+			if tt.childVal != nil {
+				child.Define(tt.varName, tt.childVal)
+			}
+
+			tok := token.Token{Type: token.IDENTIFIER, Lexeme: tt.varName, Line: 1}
+
+			if tt.assignVal != nil {
+				if err := child.Assign(tok, tt.assignVal); err != nil {
+					t.Fatalf("unexpected assign error: %v", err)
+				}
+			}
+
+			env := child
+			if tt.lookupIn == "parent" {
+				env = parent
+			}
+
+			got, err := env.Get(tok)
+			if tt.expectErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil (got %v)", got)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error getting variable %s: %v", tt.varName, err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}

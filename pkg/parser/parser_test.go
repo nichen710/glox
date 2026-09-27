@@ -335,6 +335,10 @@ func TestParser_ParseErrors(t *testing.T) {
 			name:  "invalid assignment target",
 			input: "1 + 2 = 3;",
 		},
+		{
+			name:  "missing closing brace in block",
+			input: "{ var x = 1;",
+		},
 	}
 
 	for _, tt := range errorCases {
@@ -482,6 +486,69 @@ func TestParser_VariablesAndAssignment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := mustParse(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParser_BlockStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "empty block",
+			input: "{}",
+			expected: []statement.Statement{
+				statement.Block{
+					Statements: nil,
+				},
+			},
+		},
+		{
+			name:  "block with statements",
+			input: "{ var a = 1; print a; }",
+			expected: []statement.Statement{
+				statement.Block{
+					Statements: []statement.Statement{
+						statement.Var{
+							Name:        token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1},
+							Initializer: expression.Literal{Value: 1.0},
+						},
+						statement.Print{
+							Expression: expression.Variable{
+								Name: token.Token{Type: token.IDENTIFIER, Lexeme: "a", Line: 1},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "nested blocks",
+			input: "{ { print 1; } }",
+			expected: []statement.Statement{
+				statement.Block{
+					Statements: []statement.Statement{
+						statement.Block{
+							Statements: []statement.Statement{
+								statement.Print{
+									Expression: expression.Literal{Value: 1.0},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
 			if !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("got %#v, want %#v", got, tt.expected)
 			}

@@ -11,7 +11,8 @@ import (
 
 func evaluateSource(t *testing.T, source string, out *bytes.Buffer) (any, error) {
 	t.Helper()
-	if !strings.HasSuffix(strings.TrimSpace(source), ";") {
+	trimmed := strings.TrimSpace(source)
+	if !strings.HasSuffix(trimmed, ";") && !strings.HasSuffix(trimmed, "}") {
 		source += ";"
 	}
 	tokens, err := scanner.NewScanner(source).Scan()
@@ -163,6 +164,7 @@ func TestInterpreter_RuntimeErrors(t *testing.T) {
 		{"statement runtime error", `print 1 + "a";`, "Operands of + must be either numbers or strings"},
 		{"reading undefined variable", "print x;", "Undefined variable 'x'."},
 		{"assigning undefined variable", "x = 10;", "Undefined variable 'x'."},
+		{"accessing inner block variable from outer scope", "{ var inner = 123; } print inner;", "Undefined variable 'inner'."},
 	}
 
 	for _, tt := range tests {
@@ -260,6 +262,51 @@ func TestInterpreter_Statements(t *testing.T) {
 			name:           "assignment expression returns assigned value",
 			source:         "var a = 1; print a = 2;",
 			expectedOutput: "2\n",
+		},
+		{
+			name:           "block statement execution",
+			source:         "{ var a = 1; print a; }",
+			expectedOutput: "1\n",
+		},
+		{
+			name: "block variable shadowing",
+			source: `
+var a = "global";
+{
+    var a = "local";
+    print a;
+}
+print a;
+`,
+			expectedOutput: "local\nglobal\n",
+		},
+		{
+			name: "nested scope chains",
+			source: `
+var a = "global";
+{
+    var b = "outer";
+    {
+        var c = "inner";
+        print a;
+        print b;
+        print c;
+    }
+}
+`,
+			expectedOutput: "global\nouter\ninner\n",
+		},
+		{
+			name: "mutate outer variable from inner scope",
+			source: `
+var x = 1;
+{
+    x = 2;
+    print x;
+}
+print x;
+`,
+			expectedOutput: "2\n2\n",
 		},
 	}
 

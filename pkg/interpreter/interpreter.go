@@ -66,9 +66,29 @@ func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
 		}
 		i.environment.Define(s.Name.Lexeme, val)
 		return nil, nil
+	case statement.Block:
+		return i.executeBlock(s.Statements, environment.NewEnclosedEnvironment(i.environment))
 	default:
 		return nil, fmt.Errorf("unknown statement type: %T", stmt)
 	}
+}
+
+func (i *Interpreter) executeBlock(statements []statement.Statement, env *environment.Environment) (any, error) {
+	previous := i.environment
+	i.environment = env
+	defer func() {
+		i.environment = previous
+	}()
+
+	var last any
+	for _, stmt := range statements {
+		val, err := i.Execute(stmt)
+		if err != nil {
+			return nil, err
+		}
+		last = val
+	}
+	return last, nil
 }
 
 func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {

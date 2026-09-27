@@ -2,12 +2,13 @@
 
 ## Responsabilidad
 
-El paquete Environment es el encargado de almacenar y gestionar las asociaciones (bindings) entre identificadores y valores durante la ejecucion del programa en tiempo de ejecucion. Provee operaciones para definir (`Define`), consultar (`Get`) y actualizar (`Assign`) variables.
+El paquete Environment es el encargado de almacenar y gestionar las asociaciones (bindings) entre identificadores y valores durante la ejecucion del programa en tiempo de ejecucion. Provee operaciones para definir (`Define`), consultar (`Get`) y actualizar (`Assign`) variables tanto en el entorno global como en scopes anidados.
 
 ## Diferencias de implementacion con PLOX
 
-- Almacenamiento directo mediante mapa de Go (`map[string]any`) para un acceso O(1) rápido y eficiente a las variables.
-- Manejo de errores idiomático retornando tuplas con `error` en lugar de lanzar excepciones, permitiendo al intérprete encapsular el fallo en un `RuntimeError` estructurado con la información del token y su línea.
+- Recorrido dinámico de scopes: en `Get` y `Assign` recorremos recursivamente la cadena de punteros `enclosing` hacia arriba. Esto permite resolver variables y shadowing en tiempo de ejecución de manera autónoma, sin depender de un resolvedor estático ni distancias prefijadas.
+- Manejo de errores idiomático: retornamos un `error` estándar con formato uniforme en lugar de lanzar excepciones. Esto permite al intérprete asociar el fallo al token y línea correspondientes de forma controlada.
+- Constructores explícitos: se definen `NewEnvironment()` para el scope global y `NewEnclosedEnvironment(enclosing)` para scopes anidados. Esto hace explícita la intención al entrar a un bloque y asegura la inicialización del mapa interno.
 
 ## Test
 
@@ -16,3 +17,4 @@ Para las pruebas se trataron de probar los casos de interes mediante test suites
 - Definición y lectura de variables
 - Reasignación de variables existentes
 - Manejo de errores al acceder o reasignar variables no declaradas
+- Resolución de variables en scopes anidados y shadowing

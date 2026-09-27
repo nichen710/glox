@@ -2,6 +2,7 @@ package statement
 
 import (
 	"fmt"
+	"strings"
 
 	"glox/pkg/expression"
 	"glox/pkg/token"
@@ -38,4 +39,17 @@ func (v Var) String() string {
 	}
 	return fmt.Sprintf("VAR %s = %s", v.Name.Lexeme, v.Initializer)
 }
+
+type Block struct {
+	Statements []Statement
+}
+
+func (b Block) String() string {
+	parts := make([]string, len(b.Statements))
+	for i, stmt := range b.Statements {
+		parts[i] = stmt.String()
+	}
+	return fmt.Sprintf("{ %s }", strings.Join(parts, "; "))
+}
+
 

@@ -22,6 +22,7 @@ func NewParser(tokens []token.Token) *Parser {
 		factories: []StatementFactory{
 			&PrintFactory{},
 			&VarFactory{},
+			&BlockFactory{},
 		},
 	}
 }
