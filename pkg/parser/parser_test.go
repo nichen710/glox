@@ -2,24 +2,36 @@ package parser
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"glox/pkg/expression"
 	"glox/pkg/scanner"
+	"glox/pkg/statement"
 	"glox/pkg/token"
 )
 
 func mustParse(t *testing.T, source string) expression.Expression {
 	t.Helper()
+	if !strings.HasSuffix(strings.TrimSpace(source), ";") {
+		source += ";"
+	}
 	tokens, err := scanner.NewScanner(source).Scan()
 	if err != nil {
 		t.Fatalf("unexpected scan error: %v", err)
 	}
-	expr, err := NewParser(tokens).Parse()
+	stmts, err := NewParser(tokens).Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
-	return expr
+	if len(stmts) != 1 {
+		t.Fatalf("expected 1 statement, got %d", len(stmts))
+	}
+	exprStmt, ok := stmts[0].(statement.ExpressionStatement)
+	if !ok {
+		t.Fatalf("expected ExpressionStatement, got %T", stmts[0])
+	}
+	return exprStmt.Expression
 }
 
 func TestParser_Literal(t *testing.T) {
@@ -292,16 +304,24 @@ func TestParser_ParseErrors(t *testing.T) {
 		input string
 	}{
 		{
-			name:  "empty input",
-			input: "",
+			name:  "only semicolon without expression",
+			input: ";",
 		},
 		{
 			name:  "missing right parenthesis",
-			input: "(100 + 1",
+			input: "(100 + 1;",
 		},
 		{
 			name:  "unexpected token",
-			input: "100 + * 1",
+			input: "100 + * 1;",
+		},
+		{
+			name:  "missing semicolon after print",
+			input: "print 42",
+		},
+		{
+			name:  "missing semicolon after expression",
+			input: "42 + 1",
 		},
 	}
 
@@ -312,9 +332,90 @@ func TestParser_ParseErrors(t *testing.T) {
 				t.Fatalf("unexpected scan error: %v", err)
 			}
 			parser := NewParser(tokens)
-			expr, err := parser.Parse()
+			stmts, err := parser.Parse()
 			if err == nil {
-				t.Fatalf("expected parse error for %q, but got none (expr: %v)", tt.input, expr)
+				t.Fatalf("expected parse error for %q, but got none (stmts: %v)", tt.input, stmts)
+			}
+		})
+	}
+}
+
+func mustParseStatements(t *testing.T, source string) []statement.Statement {
+	t.Helper()
+	tokens, err := scanner.NewScanner(source).Scan()
+	if err != nil {
+		t.Fatalf("unexpected scan error: %v", err)
+	}
+	stmts, err := NewParser(tokens).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	return stmts
+}
+
+func TestParser_Statements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []statement.Statement
+	}{
+		{
+			name:  "print statement",
+			input: "print 42;",
+			expected: []statement.Statement{
+				statement.Print{
+					Expression: expression.Literal{Value: 42.0},
+				},
+			},
+		},
+		{
+			name:  "print statement with expression",
+			input: "print 1 + 2;",
+			expected: []statement.Statement{
+				statement.Print{
+					Expression: expression.Binary{
+						Left:     expression.Literal{Value: 1.0},
+						Operator: token.Token{Type: token.PLUS, Lexeme: "+", Line: 1},
+						Right:    expression.Literal{Value: 2.0},
+					},
+				},
+			},
+		},
+		{
+			name:  "expression statement",
+			input: "100 + 1;",
+			expected: []statement.Statement{
+				statement.ExpressionStatement{
+					Expression: expression.Binary{
+						Left:     expression.Literal{Value: 100.0},
+						Operator: token.Token{Type: token.PLUS, Lexeme: "+", Line: 1},
+						Right:    expression.Literal{Value: 1.0},
+					},
+				},
+			},
+		},
+		{
+			name:  "multiple statements",
+			input: "print 1; 2; print 3;",
+			expected: []statement.Statement{
+				statement.Print{
+					Expression: expression.Literal{Value: 1.0},
+				},
+				statement.ExpressionStatement{
+					Expression: expression.Literal{Value: 2.0},
+				},
+				statement.Print{
+					Expression: expression.Literal{Value: 3.0},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mustParseStatements(t, tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("got %#v, want %#v", got, tt.expected)
 			}
 		})
 	}

@@ -1,30 +1,40 @@
 package interpreter
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"glox/pkg/parser"
 	"glox/pkg/scanner"
 )
 
-func evaluateSource(t *testing.T, source string) (any, error) {
+func evaluateSource(t *testing.T, source string, out *bytes.Buffer) (any, error) {
 	t.Helper()
+	if !strings.HasSuffix(strings.TrimSpace(source), ";") {
+		source += ";"
+	}
 	tokens, err := scanner.NewScanner(source).Scan()
 	if err != nil {
 		t.Fatalf("unexpected scan error on %q: %v", source, err)
 	}
 
-	expr, err := parser.NewParser(tokens).Parse()
+	stmts, err := parser.NewParser(tokens).Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error on %q: %v", source, err)
 	}
 
-	return NewInterpreter().Interpret(expr)
+	interp := NewInterpreter()
+	if out != nil {
+		interp.SetWriter(out)
+	}
+
+	return interp.Interpret(stmts)
 }
 
 func mustEvaluate(t *testing.T, source string) any {
 	t.Helper()
-	val, err := evaluateSource(t, source)
+	val, err := evaluateSource(t, source, nil)
 	if err != nil {
 		t.Fatalf("unexpected evaluation error on %q: %v", source, err)
 	}
@@ -150,11 +160,12 @@ func TestInterpreter_RuntimeErrors(t *testing.T) {
 		{"division by zero", "5 / 0", "Division by 0 is not allowed"},
 		{"modulo by zero", "10 % 0", "Modulo by 0 is not allowed"},
 		{"relational on strings", `"a" < "b"`, "Operands of < must be numbers"},
+		{"statement runtime error", `print 1 + "a";`, "Operands of + must be either numbers or strings"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := evaluateSource(t, tt.input)
+			_, err := evaluateSource(t, tt.input, nil)
 			if err == nil {
 				t.Fatalf("expected runtime error on %q, got none", tt.input)
 			}
@@ -162,7 +173,9 @@ func TestInterpreter_RuntimeErrors(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected *RuntimeError, got %T: %v", err, err)
 			}
-			t.Logf("Got expected runtime error: %v", rErr)
+			if !strings.Contains(rErr.Error(), tt.errContains) {
+				t.Errorf("expected error containing %q, got %q", tt.errContains, rErr.Error())
+			}
 		})
 	}
 }
@@ -181,9 +194,59 @@ func TestStringify(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := Stringify(tt.input)
-		if got != tt.expected {
-			t.Errorf("Stringify(%v) = %q, want %q", tt.input, got, tt.expected)
-		}
+		t.Run(tt.expected, func(t *testing.T) {
+			got := Stringify(tt.input)
+			if got != tt.expected {
+				t.Errorf("Stringify(%v) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestInterpreter_Statements(t *testing.T) {
+	tests := []struct {
+		name           string
+		source         string
+		expectedOutput string
+	}{
+		{
+			name:           "print number",
+			source:         "print 42;",
+			expectedOutput: "42\n",
+		},
+		{
+			name:           "print expression",
+			source:         "print 1 + 2;",
+			expectedOutput: "3\n",
+		},
+		{
+			name:           "print string",
+			source:         `print "hello world";`,
+			expectedOutput: "hello world\n",
+		},
+		{
+			name:           "multiple print statements",
+			source:         "print 1;\nprint 2;\nprint 3;",
+			expectedOutput: "1\n2\n3\n",
+		},
+		{
+			name:           "expression statement produces no print output",
+			source:         "100 + 1;",
+			expectedOutput: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			_, err := evaluateSource(t, tt.source, &buf)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+
+			if buf.String() != tt.expectedOutput {
+				t.Errorf("got %q, want %q", buf.String(), tt.expectedOutput)
+			}
+		})
 	}
 }

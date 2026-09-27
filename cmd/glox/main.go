@@ -53,14 +53,16 @@ func (g *Glox) Run(source string) {
 	}
 
 	prsr := parser.NewParser(tokens)
-	expr, err := prsr.Parse()
+	stmts, err := prsr.Parse()
 	if err != nil {
 		fmt.Printf("Parsing Error: %v\n", err)
 		return
 	}
 
 	if g.mode == ModeParsing {
-		fmt.Println(expr)
+		for _, stmt := range stmts {
+			fmt.Println(stmt)
+		}
 		return
 	}
 
@@ -70,14 +72,14 @@ func (g *Glox) Run(source string) {
 		return
 	}
 
-	// Execute expression evaluation
-	result, err := g.interpreter.Interpret(expr)
+	// Execute statements
+	result, err := g.interpreter.Interpret(stmts)
 	if err != nil {
 		fmt.Printf("Runtime Error: %v\n", err)
 		return
 	}
 
-	if result != nil {
+	if g.inRepl && result != nil {
 		fmt.Println(interpreter.Stringify(result))
 	}
 }

@@ -2,20 +2,59 @@ package interpreter
 
 import (
 	"fmt"
+	"io"
 	"math"
+	"os"
 
 	"glox/pkg/expression"
+	"glox/pkg/statement"
 	"glox/pkg/token"
 )
 
-type Interpreter struct{}
-
-func NewInterpreter() *Interpreter {
-	return &Interpreter{}
+type Interpreter struct {
+	out io.Writer
 }
 
-func (i *Interpreter) Interpret(expr expression.Expression) (any, error) {
-	return i.Evaluate(expr)
+func NewInterpreter() *Interpreter {
+	return &Interpreter{
+		out: os.Stdout,
+	}
+}
+
+func (i *Interpreter) SetWriter(w io.Writer) {
+	i.out = w
+}
+
+func (i *Interpreter) Interpret(statements []statement.Statement) (any, error) {
+	var last any
+	for _, stmt := range statements {
+		val, err := i.Execute(stmt)
+		if err != nil {
+			return nil, err
+		}
+		last = val
+	}
+	return last, nil
+}
+
+func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
+	switch s := stmt.(type) {
+	case statement.Print:
+		val, err := i.Evaluate(s.Expression)
+		if err != nil {
+			return nil, err
+		}
+		out := i.out
+		if out == nil {
+			out = os.Stdout
+		}
+		fmt.Fprintln(out, Stringify(val))
+		return nil, nil
+	case statement.ExpressionStatement:
+		return i.Evaluate(s.Expression)
+	default:
+		return nil, fmt.Errorf("unknown statement type: %T", stmt)
+	}
 }
 
 func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {

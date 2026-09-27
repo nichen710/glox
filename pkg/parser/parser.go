@@ -4,30 +4,61 @@ import (
 	"fmt"
 
 	"glox/pkg/expression"
+	"glox/pkg/statement"
 	"glox/pkg/token"
 )
 
 type Parser struct {
-	tokens  []token.Token
-	current int
-	_error  error // Parsing Phase Detected Error
+	tokens    []token.Token
+	current   int
+	_error    error // Parsing Phase Detected Error
+	factories []StatementFactory
 }
 
 func NewParser(tokens []token.Token) *Parser {
 	return &Parser{
 		tokens:  tokens,
 		current: 0,
+		factories: []StatementFactory{
+			&PrintFactory{},
+		},
 	}
 }
 
 // Parser Public Methods
-func (p *Parser) Parse() (expression.Expression, error) {
+func (p *Parser) Parse() ([]statement.Statement, error) {
+	var stmts []statement.Statement
+	for !p.isAtEnd() {
+		stmt, err := p.statement()
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, stmt)
+	}
+	return stmts, nil
+}
+
+func (p *Parser) statement() (statement.Statement, error) {
+	for _, factory := range p.factories {
+		if factory.CanParse(p) {
+			return factory.Parse(p)
+		}
+	}
+	return p.expressionStatement()
+}
+
+func (p *Parser) expressionStatement() (statement.Statement, error) {
 	expr := p.expression()
 	if p._error != nil {
 		return nil, p._error
 	}
 
-	return expr, nil
+	if !p.match(token.SEMICOLON) {
+		p.error(p.peek(), "Expected ';' after expression. Got "+p.peek().Lexeme+".")
+		return nil, p._error
+	}
+
+	return statement.ExpressionStatement{Expression: expr}, nil
 }
 
 // Grammar Rules
