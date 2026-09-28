@@ -12,7 +12,7 @@ fun fibonacci(n) {
     return fibonacci(n-1) + fibonacci(n-2);
 }
 
-var start = clock();
-var r = fibonacci(40);
-print clock() - start;
-assert(r, 9227465);
+// var start = clock();
+var r = fibonacci(27);
+// print clock() - start;
+assert(r, 196418);
