@@ -87,10 +87,7 @@ func (p *Parser) assignment() expression.Expression {
 		}
 
 		if variable, ok := expr.(expression.Variable); ok {
-			return expression.Assign{
-				Name:  variable.Name,
-				Value: value,
-			}
+			return expression.NewAssign(variable.Name, value)
 		}
 
 		p.error(equals, "Invalid assignment target.")
@@ -219,7 +216,7 @@ func (p *Parser) primary() expression.Expression {
 	}
 
 	if p.match(token.IDENTIFIER) {
-		return expression.Variable{Name: p.previous()}
+		return expression.NewVariable(p.previous())
 	}
 
 	p.error(p.peek(), "Expected expression. Got "+p.peek().Lexeme+".")

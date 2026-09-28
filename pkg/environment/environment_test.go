@@ -205,3 +205,180 @@ func TestEnvironment_EnclosingScopes(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvironment_GetAt(t *testing.T) {
+	global := NewEnvironment()
+	global.Define("x", "global_x")
+	global.Define("y", "global_y")
+
+	local1 := NewEnclosedEnvironment(global)
+	local1.Define("x", "local1_x")
+
+	local2 := NewEnclosedEnvironment(local1)
+	local2.Define("x", "local2_x")
+
+	tests := []struct {
+		name        string
+		distance    int
+		varName     string
+		expected    any
+		expectErr   bool
+		errContains string
+	}{
+		{
+			name:      "get at current scope (depth 0)",
+			distance:  0,
+			varName:   "x",
+			expected:  "local2_x",
+			expectErr: false,
+		},
+		{
+			name:      "get at parent scope (depth 1)",
+			distance:  1,
+			varName:   "x",
+			expected:  "local1_x",
+			expectErr: false,
+		},
+		{
+			name:      "get at ancestor scope (depth 2)",
+			distance:  2,
+			varName:   "x",
+			expected:  "global_x",
+			expectErr: false,
+		},
+		{
+			name:      "get different variable from ancestor scope (depth 2)",
+			distance:  2,
+			varName:   "y",
+			expected:  "global_y",
+			expectErr: false,
+		},
+		{
+			name:        "error when distance exceeds scope depth",
+			distance:    5,
+			varName:     "x",
+			expectErr:   true,
+			errContains: "Undefined variable 'x' at distance 5.",
+		},
+		{
+			name:        "error when variable does not exist at specified distance",
+			distance:    0,
+			varName:     "nonexistent",
+			expectErr:   true,
+			errContains: "Undefined variable 'nonexistent'.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := local2.GetAt(tt.distance, tt.varName)
+			if tt.expectErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.errContains)
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("got error %q, want error containing %q", err.Error(), tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestEnvironment_AssignAt(t *testing.T) {
+	tests := []struct {
+		name        string
+		distance    int
+		varName     string
+		value       any
+		expected    any
+		expectErr   bool
+		errContains string
+	}{
+		{
+			name:      "assign at current scope (depth 0)",
+			distance:  0,
+			varName:   "x",
+			value:     "new_local2_x",
+			expected:  "new_local2_x",
+			expectErr: false,
+		},
+		{
+			name:      "assign at parent scope (depth 1)",
+			distance:  1,
+			varName:   "x",
+			value:     "new_local1_x",
+			expected:  "new_local1_x",
+			expectErr: false,
+		},
+		{
+			name:      "assign at ancestor scope (depth 2)",
+			distance:  2,
+			varName:   "x",
+			value:     "new_global_x",
+			expected:  "new_global_x",
+			expectErr: false,
+		},
+		{
+			name:        "error when distance exceeds scope depth",
+			distance:    5,
+			varName:     "x",
+			value:       "val",
+			expectErr:   true,
+			errContains: "Undefined variable 'x' at distance 5.",
+		},
+		{
+			name:        "error when variable does not exist at specified distance",
+			distance:    0,
+			varName:     "nonexistent",
+			value:       "val",
+			expectErr:   true,
+			errContains: "Undefined variable 'nonexistent'.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			global := NewEnvironment()
+			global.Define("x", "global_x")
+
+			local1 := NewEnclosedEnvironment(global)
+			local1.Define("x", "local1_x")
+
+			local2 := NewEnclosedEnvironment(local1)
+			local2.Define("x", "local2_x")
+
+			err := local2.AssignAt(tt.distance, tt.varName, tt.value)
+			if tt.expectErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.errContains)
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("got error %q, want error containing %q", err.Error(), tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got, err := local2.GetAt(tt.distance, tt.varName)
+			if err != nil {
+				t.Fatalf("unexpected error reading back assigned variable: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+

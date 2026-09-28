@@ -9,6 +9,7 @@ import (
 
 	"glox/pkg/environment"
 	"glox/pkg/expression"
+	"glox/pkg/resolver"
 	"glox/pkg/statement"
 	"glox/pkg/token"
 )
@@ -17,6 +18,7 @@ type Interpreter struct {
 	out         io.Writer
 	globals     *environment.Environment
 	environment *environment.Environment
+	bindings    *resolver.BindingTable
 }
 
 func NewInterpreter() *Interpreter {
@@ -29,12 +31,25 @@ func NewInterpreter() *Interpreter {
 		out:         os.Stdout,
 		globals:     globals,
 		environment: globals,
+		bindings:    nil,
 	}
 }
 
 func (i *Interpreter) SetWriter(w io.Writer) {
 	i.out = w
 }
+
+func (i *Interpreter) SetBindings(bindings *resolver.BindingTable) {
+	i.bindings = bindings
+}
+
+func (i *Interpreter) Resolve(nodeID uint64, depth int) {
+	if i.bindings == nil {
+		i.bindings = resolver.NewBindingTable()
+	}
+	i.bindings.Resolve(nodeID, depth)
+}
+
 
 func (i *Interpreter) Interpret(statements []statement.Statement) (any, error) {
 	var last any
@@ -153,25 +168,14 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 	case expression.Binary:
 		return i.evaluateBinary(e)
 	case expression.Variable:
-		val, err := i.environment.Get(e.Name)
-		if err != nil {
-			return nil, &RuntimeError{
-				Token:   e.Name,
-				Message: err.Error(),
-			}
-		}
-		return val, nil
+		return i.lookUpVariable(e.ID, e.Name)
 	case expression.Assign:
 		val, err := i.Evaluate(e.Value)
 		if err != nil {
 			return nil, err
 		}
-		err = i.environment.Assign(e.Name, val)
-		if err != nil {
-			return nil, &RuntimeError{
-				Token:   e.Name,
-				Message: err.Error(),
-			}
+		if err := i.assignVariable(e.ID, e.Name, val); err != nil {
+			return nil, err
 		}
 		return val, nil
 	case expression.Logical:
@@ -362,3 +366,68 @@ func (i *Interpreter) checkNumberOperands(op token.Token, left, right any) (floa
 	}
 	return l, r, nil
 }
+
+func (i *Interpreter) lookUpVariable(id uint64, name token.Token) (any, error) {
+	if i.bindings != nil {
+		if depth, ok := i.bindings.Depth(id); ok {
+			val, err := i.environment.GetAt(depth, name.Lexeme)
+			if err != nil {
+				return nil, &RuntimeError{
+					Token:   name,
+					Message: err.Error(),
+				}
+			}
+			return val, nil
+		}
+		val, err := i.globals.Get(name)
+		if err != nil {
+			return nil, &RuntimeError{
+				Token:   name,
+				Message: err.Error(),
+			}
+		}
+		return val, nil
+	}
+
+	val, err := i.environment.Get(name)
+	if err != nil {
+		return nil, &RuntimeError{
+			Token:   name,
+			Message: err.Error(),
+		}
+	}
+	return val, nil
+}
+
+func (i *Interpreter) assignVariable(id uint64, name token.Token, val any) error {
+	if i.bindings != nil {
+		if depth, ok := i.bindings.Depth(id); ok {
+			err := i.environment.AssignAt(depth, name.Lexeme, val)
+			if err != nil {
+				return &RuntimeError{
+					Token:   name,
+					Message: err.Error(),
+				}
+			}
+			return nil
+		}
+		err := i.globals.Assign(name, val)
+		if err != nil {
+			return &RuntimeError{
+				Token:   name,
+				Message: err.Error(),
+			}
+		}
+		return nil
+	}
+
+	err := i.environment.Assign(name, val)
+	if err != nil {
+		return &RuntimeError{
+			Token:   name,
+			Message: err.Error(),
+		}
+	}
+	return nil
+}
+

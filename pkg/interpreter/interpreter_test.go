@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"glox/pkg/parser"
+	"glox/pkg/resolver"
 	"glox/pkg/scanner"
 )
 
@@ -571,3 +572,64 @@ func TestInterpreter_NativeClock(t *testing.T) {
 		t.Errorf("expected positive timestamp, got %v", num)
 	}
 }
+
+func TestInterpreter_WithResolver(t *testing.T) {
+	tests := []struct {
+		name           string
+		source         string
+		expectedOutput string
+	}{
+		{
+			name: "closure retains static scope instead of dynamic mutable scope",
+			source: `
+var a = "global";
+{
+    fun ret_a() {
+        return a;
+    }
+
+    print ret_a();
+    var a = "block";
+    print ret_a();
+}
+`,
+			expectedOutput: "global\nglobal\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens, err := scanner.NewScanner(tt.source).Scan()
+			if err != nil {
+				t.Fatalf("scan error: %v", err)
+			}
+			stmts, err := parser.NewParser(tokens).Parse()
+			if err != nil {
+				t.Fatalf("parse error: %v", err)
+			}
+
+			table := resolver.NewBindingTable()
+			rslvr := resolver.NewResolverBuilder().WithBinding(table).Build()
+			if err := rslvr.Resolve(stmts); err != nil {
+				t.Fatalf("resolver error: %v", err)
+			}
+
+			var buf bytes.Buffer
+			interp := NewInterpreter()
+			interp.SetWriter(&buf)
+			interp.SetBindings(table)
+
+			_, err = interp.Interpret(stmts)
+			if err != nil {
+				t.Fatalf("interpret error: %v", err)
+			}
+
+			if buf.String() != tt.expectedOutput {
+				t.Errorf("got %q, want %q", buf.String(), tt.expectedOutput)
+			}
+		})
+	}
+}
+
+
+

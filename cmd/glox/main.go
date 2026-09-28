@@ -9,6 +9,7 @@ import (
 
 	"glox/pkg/interpreter"
 	"glox/pkg/parser"
+	"glox/pkg/resolver"
 	"glox/pkg/scanner"
 )
 
@@ -21,19 +22,25 @@ const (
 
 type (
 	Glox struct {
-		mode        Mode
-		debug       bool
-		inRepl      bool
-		interpreter *interpreter.Interpreter
+		mode         Mode
+		debug        bool
+		inRepl       bool
+		interpreter  *interpreter.Interpreter
+		bindingTable *resolver.BindingTable
 	}
 
 	Mode string
 )
 
 func NewGlox(mode Mode) *Glox {
+	table := resolver.NewBindingTable()
+	interp := interpreter.NewInterpreter()
+	interp.SetBindings(table)
+
 	return &Glox{
-		mode:        mode,
-		interpreter: interpreter.NewInterpreter(),
+		mode:         mode,
+		interpreter:  interp,
+		bindingTable: table,
 	}
 }
 
@@ -66,9 +73,20 @@ func (g *Glox) Run(source string) {
 		return
 	}
 
-	// TODO: Implement resolver
+	rslvr := resolver.NewResolverBuilder().
+		WithBinding(g.bindingTable).
+		Build()
+
+	if err := rslvr.Resolve(stmts); err != nil {
+		fmt.Printf("Resolve Error: %v\n", err)
+		return
+	}
+
 	if g.mode == ModeResolve {
-		fmt.Println("Resolver not implemented yet.")
+		for _, stmt := range stmts {
+			fmt.Println(stmt)
+		}
+		fmt.Printf("Bindings: %s\n", g.bindingTable)
 		return
 	}
 

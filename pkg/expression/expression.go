@@ -3,9 +3,20 @@ package expression
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"glox/pkg/token"
 )
+
+var nextNodeID uint64
+
+func NextNodeID() uint64 {
+	return atomic.AddUint64(&nextNodeID, 1)
+}
+
+func ResetNodeID() {
+	atomic.StoreUint64(&nextNodeID, 0)
+}
 
 type Expression interface{}
 
@@ -64,7 +75,15 @@ func (l Literal) String() string {
 
 // IDENTIFIER
 type Variable struct {
+	ID   uint64
 	Name token.Token
+}
+
+func NewVariable(name token.Token) Variable {
+	return Variable{
+		ID:   NextNodeID(),
+		Name: name,
+	}
 }
 
 func (v Variable) String() string {
@@ -73,8 +92,17 @@ func (v Variable) String() string {
 
 // IDENTIFIER "=" expression
 type Assign struct {
+	ID    uint64
 	Name  token.Token
 	Value Expression
+}
+
+func NewAssign(name token.Token, value Expression) Assign {
+	return Assign{
+		ID:    NextNodeID(),
+		Name:  name,
+		Value: value,
+	}
 }
 
 func (a Assign) String() string {

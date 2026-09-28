@@ -49,3 +49,38 @@ func (e *Environment) Assign(name token.Token, value any) error {
 	}
 	return fmt.Errorf("Undefined variable '%s'.", name.Lexeme)
 }
+
+func (e *Environment) ancestor(distance int) *Environment {
+	env := e
+	for i := 0; i < distance; i++ {
+		if env == nil {
+			return nil
+		}
+		env = env.enclosing
+	}
+	return env
+}
+
+func (e *Environment) GetAt(distance int, name string) (any, error) {
+	anc := e.ancestor(distance)
+	if anc == nil {
+		return nil, fmt.Errorf("Undefined variable '%s' at distance %d.", name, distance)
+	}
+	if val, ok := anc.values[name]; ok {
+		return val, nil
+	}
+	return nil, fmt.Errorf("Undefined variable '%s'.", name)
+}
+
+func (e *Environment) AssignAt(distance int, name string, value any) error {
+	anc := e.ancestor(distance)
+	if anc == nil {
+		return fmt.Errorf("Undefined variable '%s' at distance %d.", name, distance)
+	}
+	if _, ok := anc.values[name]; ok {
+		anc.values[name] = value
+		return nil
+	}
+	return fmt.Errorf("Undefined variable '%s'.", name)
+}
+

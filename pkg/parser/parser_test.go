@@ -31,7 +31,7 @@ func mustParse(t *testing.T, source string) expression.Expression {
 	if !ok {
 		t.Fatalf("expected ExpressionStatement, got %T", stmts[0])
 	}
-	return exprStmt.Expression
+	return stripExprID(exprStmt.Expression)
 }
 
 func TestParser_Literal(t *testing.T) {
@@ -418,7 +418,11 @@ func mustParseStatements(t *testing.T, source string) []statement.Statement {
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
-	return stmts
+	res := make([]statement.Statement, len(stmts))
+	for i, s := range stmts {
+		res[i] = stripStmtID(s)
+	}
+	return res
 }
 
 func TestParser_PrintStatements(t *testing.T) {
@@ -1070,5 +1074,142 @@ func TestParser_ReturnStatements(t *testing.T) {
 		})
 	}
 }
+
+func TestParser_NodeIDs(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		validate func(t *testing.T, stmts []statement.Statement)
+	}{
+		{
+			name:  "variable expressions receive non-zero unique IDs",
+			input: "var x = 1; print x; print x;",
+			validate: func(t *testing.T, stmts []statement.Statement) {
+				stmt1 := stmts[1].(statement.Print)
+				var1 := stmt1.Expression.(expression.Variable)
+				if var1.ID == 0 {
+					t.Errorf("expected var1 to have non-zero ID, got 0")
+				}
+
+				stmt2 := stmts[2].(statement.Print)
+				var2 := stmt2.Expression.(expression.Variable)
+				if var2.ID == 0 {
+					t.Errorf("expected var2 to have non-zero ID, got 0")
+				}
+
+				if var1.ID == var2.ID {
+					t.Errorf("expected distinct IDs for distinct Variable AST nodes, got %d for both", var1.ID)
+				}
+			},
+		},
+		{
+			name:  "assignment expressions receive non-zero unique IDs",
+			input: "var x = 1; x = 2; x = 3;",
+			validate: func(t *testing.T, stmts []statement.Statement) {
+				stmt1 := stmts[1].(statement.ExpressionStatement)
+				assign1 := stmt1.Expression.(expression.Assign)
+				if assign1.ID == 0 {
+					t.Errorf("expected assign1 to have non-zero ID, got 0")
+				}
+
+				stmt2 := stmts[2].(statement.ExpressionStatement)
+				assign2 := stmt2.Expression.(expression.Assign)
+				if assign2.ID == 0 {
+					t.Errorf("expected assign2 to have non-zero ID, got 0")
+				}
+
+				if assign1.ID == assign2.ID {
+					t.Errorf("expected distinct IDs for distinct Assign AST nodes, got %d for both", assign1.ID)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens, err := scanner.NewScanner(tt.input).Scan()
+			if err != nil {
+				t.Fatalf("unexpected scan error: %v", err)
+			}
+			stmts, err := NewParser(tokens).Parse()
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+			tt.validate(t, stmts)
+		})
+	}
+}
+
+func stripExprID(expr expression.Expression) expression.Expression {
+	if expr == nil {
+		return nil
+	}
+	switch e := expr.(type) {
+	case expression.Variable:
+		return expression.Variable{ID: 0, Name: e.Name}
+	case expression.Assign:
+		return expression.Assign{ID: 0, Name: e.Name, Value: stripExprID(e.Value)}
+	case expression.Binary:
+		return expression.Binary{Left: stripExprID(e.Left), Operator: e.Operator, Right: stripExprID(e.Right)}
+	case expression.Unary:
+		return expression.Unary{Operator: e.Operator, Right: stripExprID(e.Right)}
+	case expression.Grouping:
+		return expression.Grouping{Expression: stripExprID(e.Expression)}
+	case expression.Logical:
+		return expression.Logical{Left: stripExprID(e.Left), Operator: e.Operator, Right: stripExprID(e.Right)}
+	case expression.Call:
+		var args []expression.Expression
+		if e.Arguments != nil {
+			args = make([]expression.Expression, len(e.Arguments))
+			for i, arg := range e.Arguments {
+				args[i] = stripExprID(arg)
+			}
+		}
+		return expression.Call{Callee: stripExprID(e.Callee), Paren: e.Paren, Arguments: args}
+	default:
+		return expr
+	}
+}
+
+func stripStmtID(stmt statement.Statement) statement.Statement {
+	if stmt == nil {
+		return nil
+	}
+	switch s := stmt.(type) {
+	case statement.Print:
+		return statement.Print{Expression: stripExprID(s.Expression)}
+	case statement.ExpressionStatement:
+		return statement.ExpressionStatement{Expression: stripExprID(s.Expression)}
+	case statement.Var:
+		return statement.Var{Name: s.Name, Initializer: stripExprID(s.Initializer)}
+	case statement.Block:
+		var stmts []statement.Statement
+		if s.Statements != nil {
+			stmts = make([]statement.Statement, len(s.Statements))
+			for i, st := range s.Statements {
+				stmts[i] = stripStmtID(st)
+			}
+		}
+		return statement.Block{Statements: stmts}
+	case statement.If:
+		return statement.If{Condition: stripExprID(s.Condition), ThenBranch: stripStmtID(s.ThenBranch), ElseBranch: stripStmtID(s.ElseBranch)}
+	case statement.While:
+		return statement.While{Condition: stripExprID(s.Condition), Body: stripStmtID(s.Body)}
+	case statement.Function:
+		var body []statement.Statement
+		if s.Body != nil {
+			body = make([]statement.Statement, len(s.Body))
+			for i, st := range s.Body {
+				body[i] = stripStmtID(st)
+			}
+		}
+		return statement.Function{Name: s.Name, Params: s.Params, Body: body}
+	case statement.Return:
+		return statement.Return{Keyword: s.Keyword, Value: stripExprID(s.Value)}
+	default:
+		return stmt
+	}
+}
+
 
 
