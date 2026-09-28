@@ -1,0 +1,18 @@
+fun assert(input, expected) {
+    if (input != expected) {
+        print "ERROR";
+    } else {
+        print "OK";
+    }
+}
+
+fun fibonacci(n) {
+    if(n <= 0) { return 0; }
+    if(n==1) { return 1; }
+    return fibonacci(n-1) + fibonacci(n-2);
+}
+
+var start = clock();
+var r = fibonacci(40);
+print clock() - start;
+assert(r, 9227465);

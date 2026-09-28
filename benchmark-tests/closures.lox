@@ -1,0 +1,27 @@
+fun assert(input, expected) {
+    if (input != expected) {
+        print "ERROR";
+    } else {
+        print "OK";
+    }
+}
+
+fun make_counter() {
+    var count = 0;
+    fun increment() {
+        count = count + 1;
+        return count;
+    }
+    return increment;
+}
+
+var counter = make_counter();
+
+var start = clock();
+var i = 0;
+while (i < 1000000) {
+    counter();
+    i = i + 1;
+}
+print clock() - start;
+assert(counter(), 1000001);

@@ -1,0 +1,16 @@
+fun assert(input, expected) {
+    if (input != expected) {
+        print "ERROR";
+    } else {
+        print "OK";
+    }
+}
+
+var n = 0;
+var start = clock();
+for (var i = 0 ; i <= 1000000; i = i + 1) {
+    n = n + 1;
+}
+print clock() - start;
+assert(n, 1000001);
+print n;
