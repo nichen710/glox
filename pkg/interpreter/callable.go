@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,14 +13,6 @@ type Callable interface {
 	Arity() int
 	Call(interpreter *Interpreter, arguments []any) (any, error)
 	String() string
-}
-
-type ReturnSignal struct {
-	Value any
-}
-
-func (r *ReturnSignal) Error() string {
-	return "return signal"
 }
 
 type LoxFunction struct {
@@ -46,7 +39,8 @@ func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (any, erro
 
 	_, err := interpreter.executeBlock(f.declaration.Body, env)
 	if err != nil {
-		if ret, ok := err.(*ReturnSignal); ok {
+		var ret *ReturnSignal
+		if errors.As(err, &ret) {
 			return ret.Value, nil
 		}
 		return nil, err

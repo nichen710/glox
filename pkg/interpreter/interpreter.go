@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -55,7 +56,8 @@ func (i *Interpreter) Interpret(statements []statement.Statement) (any, error) {
 	for _, stmt := range statements {
 		val, err := i.Execute(stmt)
 		if err != nil {
-			if ret, ok := err.(*ReturnSignal); ok {
+			var ret *ReturnSignal
+			if errors.As(err, &ret) {
 				return ret.Value, nil
 			}
 			return nil, err
@@ -210,17 +212,11 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 
 		function, ok := callee.(Callable)
 		if !ok {
-			return nil, &RuntimeError{
-				Token:   e.Paren,
-				Message: "Can only call functions and classes.",
-			}
+			return nil, NewRuntimeError(e.Paren, "Can only call functions and classes.")
 		}
 
 		if len(arguments) != function.Arity() {
-			return nil, &RuntimeError{
-				Token:   e.Paren,
-				Message: fmt.Sprintf("Expected %d arguments but got %d.", function.Arity(), len(arguments)),
-			}
+			return nil, newRuntimeErrorf(e.Paren, "Expected %d arguments but got %d.", function.Arity(), len(arguments))
 		}
 
 		return function.Call(i, arguments)
@@ -239,19 +235,13 @@ func (i *Interpreter) evaluateUnary(u expression.Unary) (any, error) {
 	case token.MINUS:
 		val, ok := right.(float64)
 		if !ok {
-			return nil, &RuntimeError{
-				Token:   u.Operator,
-				Message: fmt.Sprintf("Operand of - must be a number, got: `-%v`", right),
-			}
+			return nil, newRuntimeErrorf(u.Operator, "Operand of - must be a number, got: `-%v`", right)
 		}
 		return -val, nil
 	case token.BANG:
 		return !isTruthy(right), nil
 	default:
-		return nil, &RuntimeError{
-			Token:   u.Operator,
-			Message: fmt.Sprintf("Unknown unary operator: `%s`", u.Operator.Lexeme),
-		}
+		return nil, newRuntimeErrorf(u.Operator, "Unknown unary operator: `%s`", u.Operator.Lexeme)
 	}
 }
 
@@ -278,10 +268,7 @@ func (i *Interpreter) evaluateBinary(b expression.Binary) (any, error) {
 				return l + r, nil
 			}
 		}
-		return nil, &RuntimeError{
-			Token:   b.Operator,
-			Message: fmt.Sprintf("Operands of + must be either numbers or strings, got: `%v + %v`", left, right),
-		}
+		return nil, newRuntimeErrorf(b.Operator, "Operands of + must be either numbers or strings, got: `%v + %v`", left, right)
 	case token.MINUS:
 		l, r, err := i.checkNumberOperands(b.Operator, left, right)
 		if err != nil {
@@ -300,10 +287,7 @@ func (i *Interpreter) evaluateBinary(b expression.Binary) (any, error) {
 			return nil, err
 		}
 		if r == 0 {
-			return nil, &RuntimeError{
-				Token:   b.Operator,
-				Message: fmt.Sprintf("Division by %v is not allowed", r),
-			}
+			return nil, newRuntimeErrorf(b.Operator, "Division by %v is not allowed", r)
 		}
 		return l / r, nil
 	case token.PERCENT:
@@ -312,10 +296,7 @@ func (i *Interpreter) evaluateBinary(b expression.Binary) (any, error) {
 			return nil, err
 		}
 		if r == 0 {
-			return nil, &RuntimeError{
-				Token:   b.Operator,
-				Message: fmt.Sprintf("Modulo by %v is not allowed", r),
-			}
+			return nil, newRuntimeErrorf(b.Operator, "Modulo by %v is not allowed", r)
 		}
 		return math.Mod(l, r), nil
 	case token.GREATER:
@@ -347,10 +328,7 @@ func (i *Interpreter) evaluateBinary(b expression.Binary) (any, error) {
 	case token.BANG_EQUAL:
 		return !isEqual(left, right), nil
 	default:
-		return nil, &RuntimeError{
-			Token:   b.Operator,
-			Message: fmt.Sprintf("Unknown binary operator: `%s`", b.Operator.Lexeme),
-		}
+		return nil, newRuntimeErrorf(b.Operator, "Unknown binary operator: `%s`", b.Operator.Lexeme)
 	}
 }
 
@@ -358,74 +336,46 @@ func (i *Interpreter) checkNumberOperands(op token.Token, left, right any) (floa
 	l, okL := left.(float64)
 	r, okR := right.(float64)
 	if !okL || !okR {
-		return 0, 0, &RuntimeError{
-			Token:   op,
-			Message: fmt.Sprintf("Operands of %s must be numbers, got: `%v %s %v`", op.Lexeme, left, op.Lexeme, right),
-		}
+		return 0, 0, newRuntimeErrorf(op, "Operands of %s must be numbers, got: `%v %s %v`", op.Lexeme, left, op.Lexeme, right)
 	}
 	return l, r, nil
 }
 
 func (i *Interpreter) lookUpVariable(id uint64, name token.Token) (any, error) {
+	var val any
+	var err error
+
 	if i.bindings != nil {
 		if depth, ok := i.bindings.Depth(id); ok {
-			val, err := i.environment.GetAt(depth, name.Lexeme)
-			if err != nil {
-				return nil, &RuntimeError{
-					Token:   name,
-					Message: err.Error(),
-				}
-			}
-			return val, nil
+			val, err = i.environment.GetAt(depth, name.Lexeme)
+		} else {
+			val, err = i.globals.Get(name.Lexeme)
 		}
-		val, err := i.globals.Get(name.Lexeme)
-		if err != nil {
-			return nil, &RuntimeError{
-				Token:   name,
-				Message: err.Error(),
-			}
-		}
-		return val, nil
+	} else {
+		val, err = i.environment.Get(name.Lexeme)
 	}
 
-	val, err := i.environment.Get(name.Lexeme)
 	if err != nil {
-		return nil, &RuntimeError{
-			Token:   name,
-			Message: err.Error(),
-		}
+		return nil, NewRuntimeError(name, err.Error())
 	}
 	return val, nil
 }
 
 func (i *Interpreter) assignVariable(id uint64, name token.Token, val any) error {
+	var err error
+
 	if i.bindings != nil {
 		if depth, ok := i.bindings.Depth(id); ok {
-			err := i.environment.AssignAt(depth, name.Lexeme, val)
-			if err != nil {
-				return &RuntimeError{
-					Token:   name,
-					Message: err.Error(),
-				}
-			}
-			return nil
+			err = i.environment.AssignAt(depth, name.Lexeme, val)
+		} else {
+			err = i.globals.Assign(name.Lexeme, val)
 		}
-		err := i.globals.Assign(name.Lexeme, val)
-		if err != nil {
-			return &RuntimeError{
-				Token:   name,
-				Message: err.Error(),
-			}
-		}
-		return nil
+	} else {
+		err = i.environment.Assign(name.Lexeme, val)
 	}
 
-	err := i.environment.Assign(name.Lexeme, val)
 	if err != nil {
-		return &RuntimeError{
-			Token:   name,
-			Message: err.Error(),
-		}
+		return NewRuntimeError(name, err.Error())
 	}
 	return nil
 }

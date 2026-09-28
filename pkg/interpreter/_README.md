@@ -6,12 +6,9 @@ El Interpreter tiene la responsabilidad de ejecutar las sentencias y evaluar las
 
 ## Diferencias de implementacion con PLOX
 
-- Evaluacion directa por tipo: en esta implementacion usamos un switch de tipos tanto para sentencias (`Statement`) como para expresiones (`Expression`), ejecutando las acciones correspondientes de forma directa y sencilla.
-- Manejo de errores en runtime: en vez de cortar la ejecucion lanzando excepciones con raise, retornamos el resultado junto a un error (`RuntimeError`). Esto nos permite indicar claramente en que linea ocurrio el fallo (por ejemplo al dividir por cero o al mezclar tipos invalidos) y manejarlo de forma prolija.
-- Formateo de resultados: agregamos la funcion `Stringify` para mostrar los valores en pantalla tal como los define Lox, evitando por ejemplo que los numeros se impriman con decimales de mas.
-- Salida configurable con `SetWriter`: permite redirigir la salida del interprete hacia un buffer para verificar la emision de sentencias `print` en las pruebas unitarias.
-- Control de retornos con señales: en vez de lanzar excepciones con raise para el `return`, propagamos una señal centinela que se captura al invocar la función.
-- Interfaz `Callable`: unifica bajo un mismo contrato estático tanto las funciones de usuario como las funciones nativas (ej. `clock`).
+- Manejo de errores en runtime: en esta implementacion en vez de interrumpir la ejecucion levantando excepciones, retornamos errores tipados como valores para reportar con precision el token y la linea del fallo siguiendo el estandar de Go.
+- Control de retorno con señales: en esta implementacion en vez de lanzar excepciones para retornar de una funcion, propagamos una señal de retorno tipada que es capturada al invocar la llamada.
+- Salida configurable: en esta implementacion permitimos configurar el destino de salida del interprete, facilitando la verificacion y captura de salidas en las pruebas unitarias.
 
 ## Test
 
