@@ -1,10 +1,9 @@
 package environment
 
 import (
+	"errors"
 	"strings"
 	"testing"
-
-	"glox/pkg/token"
 )
 
 func TestEnvironment_DefineAndGet(t *testing.T) {
@@ -25,8 +24,7 @@ func TestEnvironment_DefineAndGet(t *testing.T) {
 			env := NewEnvironment()
 			env.Define(tt.varName, tt.value)
 
-			tok := token.Token{Type: token.IDENTIFIER, Lexeme: tt.varName, Line: 1}
-			got, err := env.Get(tok)
+			got, err := env.Get(tt.varName)
 			if err != nil {
 				t.Fatalf("unexpected error getting variable %s: %v", tt.varName, err)
 			}
@@ -54,13 +52,12 @@ func TestEnvironment_Assign(t *testing.T) {
 			env := NewEnvironment()
 			env.Define(tt.varName, tt.initial)
 
-			tok := token.Token{Type: token.IDENTIFIER, Lexeme: tt.varName, Line: 1}
-			err := env.Assign(tok, tt.updated)
+			err := env.Assign(tt.varName, tt.updated)
 			if err != nil {
 				t.Fatalf("unexpected error assigning variable %s: %v", tt.varName, err)
 			}
 
-			got, err := env.Get(tok)
+			got, err := env.Get(tt.varName)
 			if err != nil {
 				t.Fatalf("unexpected error getting variable %s: %v", tt.varName, err)
 			}
@@ -74,14 +71,14 @@ func TestEnvironment_Assign(t *testing.T) {
 func TestEnvironment_UndefinedErrors(t *testing.T) {
 	tests := []struct {
 		name        string
-		action      func(env *Environment, tok token.Token) error
+		action      func(env *Environment, varName string) error
 		varName     string
 		errContains string
 	}{
 		{
 			name: "get undefined variable",
-			action: func(env *Environment, tok token.Token) error {
-				_, err := env.Get(tok)
+			action: func(env *Environment, varName string) error {
+				_, err := env.Get(varName)
 				return err
 			},
 			varName:     "unknown",
@@ -89,8 +86,8 @@ func TestEnvironment_UndefinedErrors(t *testing.T) {
 		},
 		{
 			name: "assign undefined variable",
-			action: func(env *Environment, tok token.Token) error {
-				return env.Assign(tok, 123)
+			action: func(env *Environment, varName string) error {
+				return env.Assign(varName, 123)
 			},
 			varName:     "missing",
 			errContains: "Undefined variable 'missing'.",
@@ -100,10 +97,16 @@ func TestEnvironment_UndefinedErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			env := NewEnvironment()
-			tok := token.Token{Type: token.IDENTIFIER, Lexeme: tt.varName, Line: 1}
-			err := tt.action(env, tok)
+			err := tt.action(env, tt.varName)
 			if err == nil {
 				t.Fatalf("expected error, got nil")
+			}
+			var undefErr UndefinedVariableError
+			if !errors.As(err, &undefErr) {
+				t.Fatalf("expected UndefinedVariableError, got %T: %v", err, err)
+			}
+			if undefErr.Name != tt.varName {
+				t.Errorf("expected UndefinedVariableError.Name %q, got %q", tt.varName, undefErr.Name)
 			}
 			if !strings.Contains(err.Error(), tt.errContains) {
 				t.Errorf("expected error containing %q, got %q", tt.errContains, err.Error())
@@ -175,10 +178,8 @@ func TestEnvironment_EnclosingScopes(t *testing.T) {
 				child.Define(tt.varName, tt.childVal)
 			}
 
-			tok := token.Token{Type: token.IDENTIFIER, Lexeme: tt.varName, Line: 1}
-
 			if tt.assignVal != nil {
-				if err := child.Assign(tok, tt.assignVal); err != nil {
+				if err := child.Assign(tt.varName, tt.assignVal); err != nil {
 					t.Fatalf("unexpected assign error: %v", err)
 				}
 			}
@@ -188,7 +189,7 @@ func TestEnvironment_EnclosingScopes(t *testing.T) {
 				env = parent
 			}
 
-			got, err := env.Get(tok)
+			got, err := env.Get(tt.varName)
 			if tt.expectErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil (got %v)", got)
@@ -380,5 +381,3 @@ func TestEnvironment_AssignAt(t *testing.T) {
 		})
 	}
 }
-
-

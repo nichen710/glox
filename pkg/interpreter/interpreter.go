@@ -50,7 +50,6 @@ func (i *Interpreter) Resolve(nodeID uint64, depth int) {
 	i.bindings.Resolve(nodeID, depth)
 }
 
-
 func (i *Interpreter) Interpret(statements []statement.Statement) (any, error) {
 	var last any
 	for _, stmt := range statements {
@@ -379,7 +378,7 @@ func (i *Interpreter) lookUpVariable(id uint64, name token.Token) (any, error) {
 			}
 			return val, nil
 		}
-		val, err := i.globals.Get(name)
+		val, err := i.globals.Get(name.Lexeme)
 		if err != nil {
 			return nil, &RuntimeError{
 				Token:   name,
@@ -389,7 +388,7 @@ func (i *Interpreter) lookUpVariable(id uint64, name token.Token) (any, error) {
 		return val, nil
 	}
 
-	val, err := i.environment.Get(name)
+	val, err := i.environment.Get(name.Lexeme)
 	if err != nil {
 		return nil, &RuntimeError{
 			Token:   name,
@@ -411,7 +410,7 @@ func (i *Interpreter) assignVariable(id uint64, name token.Token, val any) error
 			}
 			return nil
 		}
-		err := i.globals.Assign(name, val)
+		err := i.globals.Assign(name.Lexeme, val)
 		if err != nil {
 			return &RuntimeError{
 				Token:   name,
@@ -421,7 +420,7 @@ func (i *Interpreter) assignVariable(id uint64, name token.Token, val any) error
 		return nil
 	}
 
-	err := i.environment.Assign(name, val)
+	err := i.environment.Assign(name.Lexeme, val)
 	if err != nil {
 		return &RuntimeError{
 			Token:   name,
@@ -430,4 +429,3 @@ func (i *Interpreter) assignVariable(id uint64, name token.Token, val any) error
 	}
 	return nil
 }
-

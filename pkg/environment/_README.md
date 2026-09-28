@@ -6,9 +6,10 @@ El paquete Environment es el encargado de almacenar y gestionar las asociaciones
 
 ## Diferencias de implementacion con PLOX
 
-- Recorrido dinámico de scopes: en `Get` y `Assign` recorremos recursivamente la cadena de punteros `enclosing` hacia arriba. Esto permite resolver variables y shadowing en tiempo de ejecución de manera autónoma, sin depender de un resolvedor estático ni distancias prefijadas.
-- Manejo de errores idiomático: retornamos un `error` estándar con formato uniforme en lugar de lanzar excepciones. Esto permite al intérprete asociar el fallo al token y línea correspondientes de forma controlada.
+- Manejo de errores: en esta implementacion en vez de interrumpir la ejecucion levantando excepciones, retornamos errores tipados como valores para que el interprete pueda manejar los fallos de manera controlada siguiendo el estandar de Go.
+- Separacion en las operaciones de acceso: en esta implementacion en vez de recibir distancias como parametros opcionales, separamos las consultas en metodos especificos segun si se busca en los entornos anidados o si se accede directamente a una distancia ya resuelta.
 - Constructores explícitos: se definen `NewEnvironment()` para el scope global y `NewEnclosedEnvironment(enclosing)` para scopes anidados. Esto hace explícita la intención al entrar a un bloque y asegura la inicialización del mapa interno.
+- Resolucion en entornos anidados: en esta implementacion recorremos los entornos envolventes para resolver o reasignar variables en los scopes padres cuando se busca de manera dinamica.
 
 ## Test
 

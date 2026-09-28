@@ -1,11 +1,5 @@
 package environment
 
-import (
-	"fmt"
-
-	"glox/pkg/token"
-)
-
 type Environment struct {
 	enclosing *Environment
 	values    map[string]any
@@ -29,58 +23,54 @@ func (e *Environment) Define(name string, value any) {
 	e.values[name] = value
 }
 
-func (e *Environment) Get(name token.Token) (any, error) {
-	if val, ok := e.values[name.Lexeme]; ok {
-		return val, nil
+func (e *Environment) Get(name string) (any, error) {
+	for env := e; env != nil; env = env.enclosing {
+		if val, ok := env.values[name]; ok {
+			return val, nil
+		}
 	}
-	if e.enclosing != nil {
-		return e.enclosing.Get(name)
-	}
-	return nil, fmt.Errorf("Undefined variable '%s'.", name.Lexeme)
+	return nil, NewUndefinedVariableError(name)
 }
 
-func (e *Environment) Assign(name token.Token, value any) error {
-	if _, ok := e.values[name.Lexeme]; ok {
-		e.values[name.Lexeme] = value
-		return nil
+func (e *Environment) Assign(name string, value any) error {
+	for env := e; env != nil; env = env.enclosing {
+		if _, ok := env.values[name]; ok {
+			env.values[name] = value
+			return nil
+		}
 	}
-	if e.enclosing != nil {
-		return e.enclosing.Assign(name, value)
-	}
-	return fmt.Errorf("Undefined variable '%s'.", name.Lexeme)
+	return NewUndefinedVariableError(name)
 }
 
 func (e *Environment) ancestor(distance int) *Environment {
-	env := e
-	for i := 0; i < distance; i++ {
-		if env == nil {
-			return nil
+	for range distance {
+		if e == nil {
+			break
 		}
-		env = env.enclosing
+		e = e.enclosing
 	}
-	return env
+	return e
 }
 
 func (e *Environment) GetAt(distance int, name string) (any, error) {
 	anc := e.ancestor(distance)
 	if anc == nil {
-		return nil, fmt.Errorf("Undefined variable '%s' at distance %d.", name, distance)
+		return nil, NewUndefinedVariableAtDistanceError(name, distance)
 	}
 	if val, ok := anc.values[name]; ok {
 		return val, nil
 	}
-	return nil, fmt.Errorf("Undefined variable '%s'.", name)
+	return nil, NewUndefinedVariableError(name)
 }
 
 func (e *Environment) AssignAt(distance int, name string, value any) error {
 	anc := e.ancestor(distance)
 	if anc == nil {
-		return fmt.Errorf("Undefined variable '%s' at distance %d.", name, distance)
+		return NewUndefinedVariableAtDistanceError(name, distance)
 	}
 	if _, ok := anc.values[name]; ok {
 		anc.values[name] = value
 		return nil
 	}
-	return fmt.Errorf("Undefined variable '%s'.", name)
+	return NewUndefinedVariableError(name)
 }
-
