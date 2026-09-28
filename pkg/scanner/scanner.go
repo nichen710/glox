@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"fmt"
 	"strconv"
 
 	"glox/pkg/token"
@@ -13,7 +12,7 @@ type Scanner struct {
 	start   int
 	current int
 	line    int
-	_error  error // Scanning Phase Detected Error
+	errors  ScanErrors
 }
 
 func NewScanner(source string) *Scanner {
@@ -23,6 +22,7 @@ func NewScanner(source string) *Scanner {
 		start:   0,
 		current: 0,
 		line:    1,
+		errors:  make(ScanErrors, 0),
 	}
 }
 
@@ -31,11 +31,10 @@ func (s *Scanner) Scan() ([]token.Token, error) {
 	for !s.isAtEnd() {
 		s.start = s.current
 		s.scanToken()
+	}
 
-		// Stop scanning if an error is detected
-		if s._error != nil {
-			return nil, s._error
-		}
+	if len(s.errors) > 0 {
+		return nil, s.errors
 	}
 
 	s.tokens = append(s.tokens, token.NewToken(token.EOF, "", nil, s.line))
@@ -87,29 +86,13 @@ func (s *Scanner) scanToken() {
 
 	// One- or two-character tokens
 	case '!':
-		if s.match('=') {
-			s.addToken(token.BANG_EQUAL)
-		} else {
-			s.addToken(token.BANG)
-		}
+		s.matchToken('=', token.BANG_EQUAL, token.BANG)
 	case '=':
-		if s.match('=') {
-			s.addToken(token.EQUAL_EQUAL)
-		} else {
-			s.addToken(token.EQUAL)
-		}
+		s.matchToken('=', token.EQUAL_EQUAL, token.EQUAL)
 	case '<':
-		if s.match('=') {
-			s.addToken(token.LESS_EQUAL)
-		} else {
-			s.addToken(token.LESS)
-		}
+		s.matchToken('=', token.LESS_EQUAL, token.LESS)
 	case '>':
-		if s.match('=') {
-			s.addToken(token.GREATER_EQUAL)
-		} else {
-			s.addToken(token.GREATER)
-		}
+		s.matchToken('=', token.GREATER_EQUAL, token.GREATER)
 
 	// Strings
 	case '"', '\'':
@@ -121,7 +104,7 @@ func (s *Scanner) scanToken() {
 		} else if isAlpha(c) {
 			s.identifier()
 		} else {
-			s.recordError(s.line, fmt.Sprintf("Unexpected character: `%c`", c))
+			s.errors = append(s.errors, NewUnexpectedCharError(s.line, c))
 		}
 	}
 }
@@ -130,7 +113,7 @@ func (s *Scanner) stringLiteral(quote byte) {
 	for !s.isAtEnd() && s.peek() != quote {
 		if s.peek() == '\n' {
 			if quote == '\'' {
-				s.recordError(s.line, fmt.Sprintf("Unterminated string: `%s`", s.source[s.start:s.current]))
+				s.errors = append(s.errors, NewUnterminatedStringError(s.line, s.source[s.start:s.current]))
 				return
 			}
 			s.line++
@@ -139,7 +122,7 @@ func (s *Scanner) stringLiteral(quote byte) {
 	}
 
 	if s.isAtEnd() {
-		s.recordError(s.line, fmt.Sprintf("Unterminated string: `%s`", s.source[s.start:s.current]))
+		s.errors = append(s.errors, NewUnterminatedStringError(s.line, s.source[s.start:s.current]))
 		return
 	}
 
@@ -148,7 +131,7 @@ func (s *Scanner) stringLiteral(quote byte) {
 
 	// The value of the string without the quotes
 	value := s.source[s.start+1 : s.current-1]
-	s.addTokenLiteral(token.STRING, value)
+	s.addToken(token.STRING, value)
 }
 
 func (s *Scanner) numberLiteral() {
@@ -169,11 +152,11 @@ func (s *Scanner) numberLiteral() {
 	text := s.source[s.start:s.current]
 	val, err := strconv.ParseFloat(text, 64)
 	if err != nil {
-		s.recordError(s.line, fmt.Sprintf("Invalid number: `%s`", text))
+		s.errors = append(s.errors, NewInvalidNumberError(s.line, text))
 		return
 	}
 
-	s.addTokenLiteral(token.NUMBER, val)
+	s.addToken(token.NUMBER, val)
 }
 
 func (s *Scanner) identifier() {
@@ -190,13 +173,22 @@ func (s *Scanner) identifier() {
 	}
 }
 
-func (s *Scanner) addToken(tokenType token.TokenType) {
-	s.addTokenLiteral(tokenType, nil)
+func (s *Scanner) addToken(tokenType token.TokenType, literal ...any) {
+	var lit any
+	if len(literal) > 0 {
+		lit = literal[0]
+	}
+
+	text := s.source[s.start:s.current]
+	s.tokens = append(s.tokens, token.NewToken(tokenType, text, lit, s.line))
 }
 
-func (s *Scanner) addTokenLiteral(tokenType token.TokenType, literal any) {
-	text := s.source[s.start:s.current]
-	s.tokens = append(s.tokens, token.NewToken(tokenType, text, literal, s.line))
+func (s *Scanner) matchToken(expected byte, matched, unmatched token.TokenType) {
+	if s.match(expected) {
+		s.addToken(matched)
+	} else {
+		s.addToken(unmatched)
+	}
 }
 
 func (s *Scanner) isAtEnd() bool {
@@ -229,10 +221,6 @@ func (s *Scanner) peekNext() byte {
 		return 0
 	}
 	return s.source[s.current+1]
-}
-
-func (s *Scanner) recordError(line int, message string) {
-	s._error = fmt.Errorf("[line %d] Error: %s\n", line, message)
 }
 
 // Char Value Checkers

@@ -161,29 +161,27 @@ func TestCompleteStatements(t *testing.T) {
 }
 
 func TestScanningErrors(t *testing.T) {
-	errorCases := []struct {
-		name  string
-		input string
+	tests := []struct {
+		name          string
+		input         string
+		expectedCount int
 	}{
-		{
-			name:  "unexpected character @",
-			input: "var x = @;",
-		},
-		{
-			name:  "unterminated double-quoted string at EOF",
-			input: `"cadena sin cerrar`,
-		},
+		{"unexpected character @", "var x = @;", 1},
+		{"unterminated double-quoted string at EOF", `"cadena sin cerrar`, 1},
+		{"unterminated single-quoted string at newline", "'cadena sin cerrar\n", 1},
+		{"multiple errors across lines", "var a = @;\nvar b = #;\nvar c = $;", 3},
 	}
 
-	for _, tt := range errorCases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewScanner(tt.input)
-			tokens, err := s.Scan()
-			if err == nil {
-				t.Fatalf("expected scanning error for %q, but got none (tokens: %v)", tt.input, tokens)
+			tokens, err := NewScanner(tt.input).Scan()
+			if tokens != nil || err == nil {
+				t.Fatalf("expected error and nil tokens for %q, got tokens=%v, err=%v", tt.input, tokens, err)
 			}
-			if tokens != nil {
-				t.Errorf("expected tokens to be nil on error, got %v", tokens)
+
+			scanErrors, ok := err.(ScanErrors)
+			if !ok || len(scanErrors) != tt.expectedCount {
+				t.Fatalf("expected %d errors, got %v", tt.expectedCount, err)
 			}
 		})
 	}
