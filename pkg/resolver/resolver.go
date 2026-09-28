@@ -12,6 +12,10 @@ func NewResolver(pipeline *Pipeline) *Resolver {
 	}
 }
 
+func NewDefaultResolver(table *BindingTable) *Resolver {
+	return NewResolverBuilder().WithBinding(table).Build()
+}
+
 // Resolver Public Methods
 func (r *Resolver) Resolve(statements []statement.Statement) error {
 	if r.pipeline == nil {

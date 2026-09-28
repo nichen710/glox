@@ -73,10 +73,7 @@ func (g *Glox) Run(source string) {
 		return
 	}
 
-	rslvr := resolver.NewResolverBuilder().
-		WithBinding(g.bindingTable).
-		Build()
-
+	rslvr := resolver.NewDefaultResolver(g.bindingTable)
 	if err := rslvr.Resolve(stmts); err != nil {
 		fmt.Printf("Resolve Error: %v\n", err)
 		return

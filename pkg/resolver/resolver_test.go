@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -125,7 +126,7 @@ fun outer(x) {
 		t.Run(tt.name, func(t *testing.T) {
 			stmts := parseSource(t, tt.source)
 			table := NewBindingTable()
-			rslvr := NewResolverBuilder().WithBinding(table).Build()
+			rslvr := NewDefaultResolver(table)
 
 			if err := rslvr.Resolve(stmts); err != nil {
 				t.Fatalf("unexpected resolver error: %v", err)
@@ -180,11 +181,15 @@ return;
 		t.Run(tt.name, func(t *testing.T) {
 			stmts := parseSource(t, tt.source)
 			table := NewBindingTable()
-			rslvr := NewResolverBuilder().WithBinding(table).Build()
+			rslvr := NewDefaultResolver(table)
 
 			err := rslvr.Resolve(stmts)
 			if err == nil {
 				t.Fatalf("expected error containing %q, got nil", tt.expectedErr)
+			}
+			var resolveErr ResolveError
+			if !errors.As(err, &resolveErr) {
+				t.Fatalf("expected ResolveError, got %T: %v", err, err)
 			}
 			if !strings.Contains(err.Error(), tt.expectedErr) {
 				t.Errorf("got %q, want error containing %q", err.Error(), tt.expectedErr)

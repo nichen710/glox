@@ -13,18 +13,25 @@ const (
 	FunctionTypeFunction
 )
 
+const (
+	variableDeclared variableState = iota
+	variableDefined
+)
+
 type FunctionType int
+
+type variableState int
 
 type BindingStep struct {
 	table           *BindingTable
-	scopes          []map[string]bool
+	scopes          []map[string]variableState
 	currentFunction FunctionType
 }
 
 func NewBindingStep(table *BindingTable) *BindingStep {
 	return &BindingStep{
 		table:           table,
-		scopes:          make([]map[string]bool, 0),
+		scopes:          make([]map[string]variableState, 0),
 		currentFunction: FunctionTypeNone,
 	}
 }
@@ -90,7 +97,7 @@ func (s *BindingStep) resolveStatement(stmt statement.Statement) error {
 		return s.resolveExpression(st.Expression)
 	case statement.Return:
 		if s.currentFunction == FunctionTypeNone {
-			return fmt.Errorf("[line %d] Error at '%s': Can't return from top-level code.", st.Keyword.Line, st.Keyword.Lexeme)
+			return NewResolveError(st.Keyword, "Can't return from top-level code.")
 		}
 		if st.Value != nil {
 			return s.resolveExpression(st.Value)
@@ -112,9 +119,9 @@ func (s *BindingStep) resolveExpression(expr expression.Expression) error {
 	}
 	switch e := expr.(type) {
 	case expression.Variable:
-		if len(s.scopes) > 0 {
-			if initialized, ok := s.scopes[len(s.scopes)-1][e.Name.Lexeme]; ok && !initialized {
-				return fmt.Errorf("[line %d] Error at '%s': Can't read local variable in its own initializer.", e.Name.Line, e.Name.Lexeme)
+		if scope, ok := s.currentScope(); ok {
+			if state, exists := scope[e.Name.Lexeme]; exists && state == variableDeclared {
+				return NewResolveError(e.Name, "Can't read local variable in its own initializer.")
 			}
 		}
 		s.resolveLocal(e.ID, e.Name)
@@ -188,8 +195,15 @@ func (s *BindingStep) resolveLocal(nodeID uint64, name token.Token) {
 	}
 }
 
+func (s *BindingStep) currentScope() (map[string]variableState, bool) {
+	if len(s.scopes) == 0 {
+		return nil, false
+	}
+	return s.scopes[len(s.scopes)-1], true
+}
+
 func (s *BindingStep) beginScope() {
-	s.scopes = append(s.scopes, make(map[string]bool))
+	s.scopes = append(s.scopes, make(map[string]variableState))
 }
 
 func (s *BindingStep) endScope() {
@@ -197,20 +211,19 @@ func (s *BindingStep) endScope() {
 }
 
 func (s *BindingStep) declare(name token.Token) error {
-	if len(s.scopes) == 0 {
+	scope, ok := s.currentScope()
+	if !ok {
 		return nil
 	}
-	scope := s.scopes[len(s.scopes)-1]
 	if _, exists := scope[name.Lexeme]; exists {
-		return fmt.Errorf("[line %d] Error at '%s': Already a variable with this name in this scope.", name.Line, name.Lexeme)
+		return NewResolveError(name, "Already a variable with this name in this scope.")
 	}
-	scope[name.Lexeme] = false
+	scope[name.Lexeme] = variableDeclared
 	return nil
 }
 
 func (s *BindingStep) define(name token.Token) {
-	if len(s.scopes) == 0 {
-		return
+	if scope, ok := s.currentScope(); ok {
+		scope[name.Lexeme] = variableDefined
 	}
-	s.scopes[len(s.scopes)-1][name.Lexeme] = true
 }
