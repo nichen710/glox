@@ -404,6 +404,9 @@ func TestParser_ParseErrors(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected parse error for %q, but got none (stmts: %v)", tt.input, stmts)
 			}
+			if _, ok := err.(ParseError); !ok {
+				t.Errorf("expected err to be of type ParseError, got %T", err)
+			}
 		})
 	}
 }

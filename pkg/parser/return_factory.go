@@ -25,7 +25,7 @@ func (f *ReturnFactory) Parse(p *Parser) (statement.Statement, error) {
 	}
 
 	if !p.match(token.SEMICOLON) {
-		p.error(p.peek(), "Expected ';' after return value. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected ';' after return value. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 

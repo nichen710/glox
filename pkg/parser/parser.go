@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"glox/pkg/expression"
 	"glox/pkg/statement"
 	"glox/pkg/token"
@@ -28,6 +26,7 @@ func NewParser(tokens []token.Token) *Parser {
 			&ForFactory{},
 			&FunctionFactory{},
 			&ReturnFactory{},
+			&ExpressionStatementFactory{},
 		},
 	}
 }
@@ -51,21 +50,7 @@ func (p *Parser) statement() (statement.Statement, error) {
 			return factory.Parse(p)
 		}
 	}
-	return p.expressionStatement()
-}
-
-func (p *Parser) expressionStatement() (statement.Statement, error) {
-	expr := p.expression()
-	if p._error != nil {
-		return nil, p._error
-	}
-
-	if !p.match(token.SEMICOLON) {
-		p.error(p.peek(), "Expected ';' after expression. Got "+p.peek().Lexeme+".")
-		return nil, p._error
-	}
-
-	return statement.ExpressionStatement{Expression: expr}, nil
+	return nil, p._error
 }
 
 // Grammar Rules
@@ -90,7 +75,7 @@ func (p *Parser) assignment() expression.Expression {
 			return expression.NewAssign(variable.Name, value)
 		}
 
-		p.error(equals, "Invalid assignment target.")
+		p._error = NewParseError(equals, "Invalid assignment target.")
 		return nil
 	}
 
@@ -162,7 +147,7 @@ func (p *Parser) finishCall(callee expression.Expression) expression.Expression 
 	if !p.check(token.RIGHT_PAREN) {
 		for {
 			if len(arguments) >= 255 {
-				p.error(p.peek(), "Can't have more than 255 arguments.")
+				p._error = NewParseError(p.peek(), "Can't have more than 255 arguments.")
 				return nil
 			}
 			arg := p.expression()
@@ -177,7 +162,7 @@ func (p *Parser) finishCall(callee expression.Expression) expression.Expression 
 	}
 
 	if !p.match(token.RIGHT_PAREN) {
-		p.error(p.peek(), "Expected ')' after arguments. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected ')' after arguments. Got "+p.peek().Lexeme+".")
 		return nil
 	}
 
@@ -209,7 +194,7 @@ func (p *Parser) primary() expression.Expression {
 			return nil
 		}
 		if !p.match(token.RIGHT_PAREN) {
-			p.error(p.peek(), "Expected ')' after grouping expression. Got "+p.peek().Lexeme+".")
+			p._error = NewParseError(p.peek(), "Expected ')' after grouping expression. Got "+p.peek().Lexeme+".")
 			return nil
 		}
 		return expression.Grouping{Expression: expr}
@@ -219,7 +204,7 @@ func (p *Parser) primary() expression.Expression {
 		return expression.NewVariable(p.previous())
 	}
 
-	p.error(p.peek(), "Expected expression. Got "+p.peek().Lexeme+".")
+	p._error = NewParseError(p.peek(), "Expected expression. Got "+p.peek().Lexeme+".")
 	return nil
 }
 
@@ -302,8 +287,4 @@ func (p *Parser) previous() token.Token {
 
 func (p *Parser) isAtEnd() bool {
 	return p.peek().Type == token.EOF
-}
-
-func (p *Parser) error(tok token.Token, message string) {
-	p._error = fmt.Errorf("[line %d] Error: %s\n", tok.Line, message)
 }

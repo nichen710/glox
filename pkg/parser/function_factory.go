@@ -15,13 +15,13 @@ func (f *FunctionFactory) Parse(p *Parser) (statement.Statement, error) {
 	p.advance()
 
 	if !p.match(token.IDENTIFIER) {
-		p.error(p.peek(), "Expected function name. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected function name. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 	name := p.previous()
 
 	if !p.match(token.LEFT_PAREN) {
-		p.error(p.peek(), "Expected '(' after function name. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected '(' after function name. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 
@@ -29,11 +29,11 @@ func (f *FunctionFactory) Parse(p *Parser) (statement.Statement, error) {
 	if !p.check(token.RIGHT_PAREN) {
 		for {
 			if len(params) >= 255 {
-				p.error(p.peek(), "Can't have more than 255 parameters.")
+				p._error = NewParseError(p.peek(), "Can't have more than 255 parameters.")
 				return nil, p._error
 			}
 			if !p.match(token.IDENTIFIER) {
-				p.error(p.peek(), "Expected parameter name. Got "+p.peek().Lexeme+".")
+				p._error = NewParseError(p.peek(), "Expected parameter name. Got "+p.peek().Lexeme+".")
 				return nil, p._error
 			}
 			params = append(params, p.previous())
@@ -44,12 +44,12 @@ func (f *FunctionFactory) Parse(p *Parser) (statement.Statement, error) {
 	}
 
 	if !p.match(token.RIGHT_PAREN) {
-		p.error(p.peek(), "Expected ')' after parameters. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected ')' after parameters. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 
 	if !p.check(token.LEFT_BRACE) {
-		p.error(p.peek(), "Expected '{' before function body. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected '{' before function body. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 

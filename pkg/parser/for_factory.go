@@ -16,7 +16,7 @@ func (f *ForFactory) Parse(p *Parser) (statement.Statement, error) {
 	p.advance()
 
 	if !p.match(token.LEFT_PAREN) {
-		p.error(p.peek(), "Expected '(' after 'for'. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected '(' after 'for'. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 
@@ -30,7 +30,7 @@ func (f *ForFactory) Parse(p *Parser) (statement.Statement, error) {
 			return nil, err
 		}
 	} else {
-		initializer, err = p.expressionStatement()
+		initializer, err = (&ExpressionStatementFactory{}).Parse(p)
 		if err != nil {
 			return nil, err
 		}
@@ -44,7 +44,7 @@ func (f *ForFactory) Parse(p *Parser) (statement.Statement, error) {
 		}
 	}
 	if !p.match(token.SEMICOLON) {
-		p.error(p.peek(), "Expected ';' after loop condition. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected ';' after loop condition. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 
@@ -56,7 +56,7 @@ func (f *ForFactory) Parse(p *Parser) (statement.Statement, error) {
 		}
 	}
 	if !p.match(token.RIGHT_PAREN) {
-		p.error(p.peek(), "Expected ')' after for clauses. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected ')' after for clauses. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 

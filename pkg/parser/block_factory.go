@@ -24,7 +24,7 @@ func (f *BlockFactory) Parse(p *Parser) (statement.Statement, error) {
 	}
 
 	if !p.match(token.RIGHT_BRACE) {
-		p.error(p.peek(), "Expected '}' after block. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected '}' after block. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 

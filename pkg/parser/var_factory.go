@@ -16,7 +16,7 @@ func (f *VarFactory) Parse(p *Parser) (statement.Statement, error) {
 	p.advance()
 
 	if !p.match(token.IDENTIFIER) {
-		p.error(p.peek(), "Expected variable name. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected variable name. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 	name := p.previous()
@@ -30,7 +30,7 @@ func (f *VarFactory) Parse(p *Parser) (statement.Statement, error) {
 	}
 
 	if !p.match(token.SEMICOLON) {
-		p.error(p.peek(), "Expected ';' after variable declaration. Got "+p.peek().Lexeme+".")
+		p._error = NewParseError(p.peek(), "Expected ';' after variable declaration. Got "+p.peek().Lexeme+".")
 		return nil, p._error
 	}
 
