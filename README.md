@@ -99,3 +99,16 @@ También podemos ver que la otra implementación de Lox en Go que encontramos es
 - Donde nosotros devolvemos errores de la manera intencionada en Go, la otra solución utiliza panic y recover, lo cual es costoso. Esto hace a los returns en Lox lentos.
 
 Estas diferencias en benchmark son una clara diferencia de Lenguaje y Implementación. Todas son el mismo lenguaje, Lox, implementado de maneras distintas con diseños distintos que tienen consecuencias en performance, pero no afectan los resultados de las ejecuciones.
+
+#### Diferencias con otras implementaciones en Go
+Se realizaron pruebas y se logró comprobar empíricamente las pricipales causas de la diferencia en tiempos de ejecución con la implementación de Chidi Williams.
+
+Se ejecutaron nuevamente los benchmarks utilizando el profiler de Go `pprof`. En la implementación más lenta, se observó que entre el 60% y 80% del tiempo de ejecución está siendo utilizado por `fmt.Sprintf`, que es lo que se utiliza para armar la clave de cada variable leida o asignada.
+
+Otra comprobación realizada fue modificar las partes que nos parecen podrían ser el problema. En la implementación de Chidi corregimos el problema de la clave de texto, eso hizo que se ejecutara mucho más rápido. Aún así, en los tests que llaman a funciones seguía performando considerablemente peor que nuestra implementación. Luego cambiamos el uso de panics por returns para devolver como valor, lo que mejoró la llamada a funciones y acercó bastante los tiempos de ejecución entre ambas implementaciones.
+
+| Benchmark | other glox | other glox modificado | glox |
+|:---------:|:----------:|:---------------------:|:----:|
+| closures  | 6.25s      | 0.67s                 | 0.38s|
+| recursion | 1.91s      | 0.36s                 | 0.31s|
+| sums      | 5.03s      | 0.47s                 | 0.25s|
