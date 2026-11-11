@@ -1,0 +1,33 @@
+package chunk
+
+type OpCode byte
+
+const (
+	// Instrucciones sin operandos
+	OP_NIL OpCode = iota
+	OP_TRUE
+	OP_FALSE
+	OP_RETURN
+	OP_PRINT
+	OP_POP
+
+	// Instrucciones con operandos
+	OP_CONSTANT
+)
+
+var opCodeNames = map[OpCode]string{
+	OP_NIL:      "OP_NIL",
+	OP_TRUE:     "OP_TRUE",
+	OP_FALSE:    "OP_FALSE",
+	OP_RETURN:   "OP_RETURN",
+	OP_PRINT:    "OP_PRINT",
+	OP_POP:      "OP_POP",
+	OP_CONSTANT: "OP_CONSTANT",
+}
+
+func (op OpCode) String() string {
+	if name, ok := opCodeNames[op]; ok {
+		return name
+	}
+	return "OP_UNKNOWN"
+}
