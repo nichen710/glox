@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"glox/pkg/chunk"
@@ -53,6 +54,77 @@ func TestVM_Print(t *testing.T) {
 			}
 			if got != tt.expected {
 				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_Operators(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"negate", "print -3;", "-3"},
+		{"not", "print !true;", "false"},
+		{"not nil", "print !nil;", "true"},
+		{"not number", "print !0;", "false"},
+		{"add", "print 1 + 2;", "3"},
+		{"concat", `print "ab" + "cd";`, "abcd"},
+		{"subtract", "print 5 - 7;", "-2"},
+		{"multiply", "print 4 * 2.5;", "10"},
+		{"divide", "print 7 / 2;", "3.5"},
+		{"modulo", "print 7 % 3;", "1"},
+		{"precedence", "print 1 + 2 * 3;", "7"},
+		{"associativity", "print 10 - 4 - 3;", "3"},
+		{"grouping", "print (1 + 2) * 3;", "9"},
+		{"equal", "print 1 == 1;", "true"},
+		{"equal strings", `print "a" == "a";`, "true"},
+		{"equal different types", `print 1 == "1";`, "false"},
+		{"equal nil", "print nil == nil;", "true"},
+		{"not equal", "print 1 != 2;", "true"},
+		{"greater", "print 2 > 1;", "true"},
+		{"greater equal", "print 1 >= 1;", "true"},
+		{"less", "print 2 < 1;", "false"},
+		{"less equal", "print 2 <= 1;", "false"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected+"\n" {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_OperatorErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"negate string", `-"a";`, "Operand of OP_NEGATE must be a number"},
+		{"add number and string", `1 + "a";`, "Operands of OP_ADD must be either numbers or strings"},
+		{"subtract bools", "true - false;", "Operands of OP_SUBTRACT must be numbers"},
+		{"compare strings", `"a" < "b";`, "Operands of OP_LESS must be numbers"},
+		{"divide by zero", "1 / 0;", "Division by 0 is not allowed"},
+		{"modulo by zero", "1 % 0;", "Division by 0 is not allowed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runSource(t, tt.input)
+			var runtimeErr *RuntimeError
+			if !errors.As(err, &runtimeErr) {
+				t.Fatalf("expected RuntimeError, got %v", err)
+			}
+			if !strings.Contains(err.Error(), tt.expected) {
+				t.Errorf("got %q, want it to contain %q", err.Error(), tt.expected)
 			}
 		})
 	}

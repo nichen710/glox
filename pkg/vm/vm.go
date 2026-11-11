@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"glox/pkg/chunk"
@@ -37,6 +38,7 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 		offset := vm.ip
 		op := chunk.OpCode(vm.readByte())
 
+		var err error
 		switch op {
 		case chunk.OP_CONSTANT:
 			index := vm.readByte()
@@ -48,22 +50,133 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 		case chunk.OP_FALSE:
 			vm.push(false)
 		case chunk.OP_POP:
-			if _, err := vm.pop(offset); err != nil {
-				return err
-			}
+			_, err = vm.pop(offset)
 		case chunk.OP_PRINT:
-			val, err := vm.pop(offset)
-			if err != nil {
-				return err
+			var val any
+			if val, err = vm.pop(offset); err == nil {
+				fmt.Fprintln(vm.out, interpreter.Stringify(val))
 			}
-			fmt.Fprintln(vm.out, interpreter.Stringify(val))
+		case chunk.OP_NEGATE:
+			err = vm.negate(offset)
+		case chunk.OP_NOT:
+			var val any
+			if val, err = vm.pop(offset); err == nil {
+				vm.push(!isTruthy(val))
+			}
+		case chunk.OP_ADD:
+			err = vm.add(offset)
+		case chunk.OP_SUBTRACT:
+			err = vm.numberOp(offset, op, func(a, b float64) any { return a - b })
+		case chunk.OP_MULTIPLY:
+			err = vm.numberOp(offset, op, func(a, b float64) any { return a * b })
+		case chunk.OP_DIVIDE:
+			err = vm.divide(offset, op, func(a, b float64) any { return a / b })
+		case chunk.OP_MODULO:
+			err = vm.divide(offset, op, func(a, b float64) any { return math.Mod(a, b) })
+		case chunk.OP_GREATER:
+			err = vm.numberOp(offset, op, func(a, b float64) any { return a > b })
+		case chunk.OP_LESS:
+			err = vm.numberOp(offset, op, func(a, b float64) any { return a < b })
+		case chunk.OP_EQUAL:
+			var a, b any
+			if a, b, err = vm.popOperands(offset); err == nil {
+				vm.push(isEqual(a, b))
+			}
 		case chunk.OP_RETURN:
 			return nil
 		default:
-			return NewUnknownOpCodeError(offset, op)
+			err = NewUnknownOpCodeError(offset, op)
+		}
+
+		if err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (vm *VM) negate(offset int) error {
+	val, err := vm.pop(offset)
+	if err != nil {
+		return err
+	}
+	num, ok := val.(float64)
+	if !ok {
+		return newRuntimeErrorf(offset, "Operand of OP_NEGATE must be a number, got: `%v`", val)
+	}
+	vm.push(-num)
+	return nil
+}
+
+// + suma numeros o concatena strings
+func (vm *VM) add(offset int) error {
+	a, b, err := vm.popOperands(offset)
+	if err != nil {
+		return err
+	}
+
+	switch l := a.(type) {
+	case float64:
+		if r, ok := b.(float64); ok {
+			vm.push(l + r)
+			return nil
+		}
+	case string:
+		if r, ok := b.(string); ok {
+			vm.push(l + r)
+			return nil
+		}
+	}
+	return newRuntimeErrorf(offset, "Operands of OP_ADD must be either numbers or strings, got: `%v, %v`", a, b)
+}
+
+// Solo aceptan numeros, popean los dos operandos y pushean el resultado
+func (vm *VM) numberOp(offset int, op chunk.OpCode, operation func(a, b float64) any) error {
+	a, b, err := vm.popNumbers(offset, op)
+	if err != nil {
+		return err
+	}
+	vm.push(operation(a, b))
+	return nil
+}
+
+// No permite dividir por cero
+func (vm *VM) divide(offset int, op chunk.OpCode, operation func(a, b float64) any) error {
+	a, b, err := vm.popNumbers(offset, op)
+	if err != nil {
+		return err
+	}
+	if b == 0 {
+		return newRuntimeErrorf(offset, "Division by %v is not allowed in %s", b, op)
+	}
+	vm.push(operation(a, b))
+	return nil
+}
+
+func (vm *VM) popNumbers(offset int, op chunk.OpCode) (float64, float64, error) {
+	a, b, err := vm.popOperands(offset)
+	if err != nil {
+		return 0, 0, err
+	}
+	l, okL := a.(float64)
+	r, okR := b.(float64)
+	if !okL || !okR {
+		return 0, 0, newRuntimeErrorf(offset, "Operands of %s must be numbers, got: `%v, %v`", op, a, b)
+	}
+	return l, r, nil
+}
+
+// El operando derecho esta en el tope del stack, el izquierdo justo abajo
+func (vm *VM) popOperands(offset int) (any, any, error) {
+	b, err := vm.pop(offset)
+	if err != nil {
+		return nil, nil, err
+	}
+	a, err := vm.pop(offset)
+	if err != nil {
+		return nil, nil, err
+	}
+	return a, b, nil
 }
 
 func (vm *VM) readByte() byte {

@@ -15,6 +15,13 @@ func (e *RuntimeError) Error() string {
 	return fmt.Sprintf("[offset %04d] Error: %s", e.Offset, e.Message)
 }
 
+func newRuntimeErrorf(offset int, format string, args ...any) *RuntimeError {
+	return &RuntimeError{
+		Offset:  offset,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
 func NewStackUnderflowError(offset int) *RuntimeError {
 	return &RuntimeError{
 		Offset:  offset,

@@ -34,14 +34,26 @@ var rules map[token.TokenType]parseRule
 func init() {
 	rules = map[token.TokenType]parseRule{
 		// TokenType: {prefix, infix, prefixPrecedence, infixPrecedence}
-		token.LEFT_PAREN:  {(*Compiler).grouping, nil, PREC_NONE, PREC_NONE},
-		token.RIGHT_PAREN: {nil, nil, PREC_NONE, PREC_NONE},
-		token.NUMBER:      {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
-		token.STRING:      {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
-		token.NIL:         {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
-		token.TRUE:        {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
-		token.FALSE:       {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
-		token.EOF:         {nil, nil, PREC_NONE, PREC_NONE},
+		token.LEFT_PAREN:    {(*Compiler).grouping, nil, PREC_NONE, PREC_NONE},
+		token.RIGHT_PAREN:   {nil, nil, PREC_NONE, PREC_NONE},
+		token.NUMBER:        {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
+		token.STRING:        {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
+		token.NIL:           {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
+		token.TRUE:          {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
+		token.FALSE:         {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
+		token.MINUS:         {(*Compiler).unary, (*Compiler).binary, PREC_UNARY, PREC_TERM},
+		token.PLUS:          {nil, (*Compiler).binary, PREC_NONE, PREC_TERM},
+		token.STAR:          {nil, (*Compiler).binary, PREC_NONE, PREC_FACTOR},
+		token.SLASH:         {nil, (*Compiler).binary, PREC_NONE, PREC_FACTOR},
+		token.PERCENT:       {nil, (*Compiler).binary, PREC_NONE, PREC_FACTOR},
+		token.BANG:          {(*Compiler).unary, nil, PREC_UNARY, PREC_NONE},
+		token.BANG_EQUAL:    {nil, (*Compiler).binary, PREC_NONE, PREC_EQUALITY},
+		token.EQUAL_EQUAL:   {nil, (*Compiler).binary, PREC_NONE, PREC_EQUALITY},
+		token.GREATER:       {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
+		token.GREATER_EQUAL: {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
+		token.LESS:          {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
+		token.LESS_EQUAL:    {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
+		token.EOF:           {nil, nil, PREC_NONE, PREC_NONE},
 	}
 }
 

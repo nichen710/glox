@@ -69,6 +69,75 @@ func TestCompiler_Literals(t *testing.T) {
 	}
 }
 
+func TestCompiler_Operators(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"negate", "-1;", []string{"OP_CONSTANT<1>", "OP_NEGATE"}},
+		{"not", "!true;", []string{"OP_TRUE", "OP_NOT"}},
+		{"double not", "!!nil;", []string{"OP_NIL", "OP_NOT", "OP_NOT"}},
+		{"add", "1 + 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_ADD"}},
+		{"subtract", "1 - 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_SUBTRACT"}},
+		{"multiply", "1 * 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_MULTIPLY"}},
+		{"divide", "1 / 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_DIVIDE"}},
+		{"modulo", "1 % 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_MODULO"}},
+		{"equal", "1 == 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_EQUAL"}},
+		{"not equal", "1 != 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_EQUAL", "OP_NOT"}},
+		{"greater", "1 > 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GREATER"}},
+		{"greater equal", "1 >= 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_LESS", "OP_NOT"}},
+		{"less", "1 < 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_LESS"}},
+		{"less equal", "1 <= 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GREATER", "OP_NOT"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := compileSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected compile error on %q: %v", tt.input, err)
+			}
+			assertInstructions(t, c, append(tt.expected, "OP_POP", "OP_RETURN"))
+		})
+	}
+}
+
+func TestCompiler_PrecedenceAndAssociativity(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"factor before term", "1 + 2 * 3;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_CONSTANT<3>", "OP_MULTIPLY", "OP_ADD"}},
+		{"left associative", "1 - 2 - 3;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_SUBTRACT", "OP_CONSTANT<3>", "OP_SUBTRACT"}},
+		{"grouping changes order", "(1 + 2) * 3;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_ADD", "OP_CONSTANT<3>", "OP_MULTIPLY"}},
+		{"unary before factor", "-1 * 2;", []string{"OP_CONSTANT<1>", "OP_NEGATE", "OP_CONSTANT<2>", "OP_MULTIPLY"}},
+		{"comparison before equality", "1 < 2 == true;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_LESS", "OP_TRUE", "OP_EQUAL"}},
+		{"term before comparison", "1 + 2 > 3;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_ADD", "OP_CONSTANT<3>", "OP_GREATER"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := compileSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected compile error on %q: %v", tt.input, err)
+			}
+			assertInstructions(t, c, append(tt.expected, "OP_POP", "OP_RETURN"))
+		})
+	}
+}
+
+func assertInstructions(t *testing.T, c *chunk.Chunk, expected []string) {
+	t.Helper()
+	var got []string
+	for _, line := range strings.Split(c.String(), "\n") {
+		got = append(got, strings.SplitN(line, "| ", 2)[1])
+	}
+	if strings.Join(got, " ") != strings.Join(expected, " ") {
+		t.Errorf("got:\n%v\nwant:\n%v", got, expected)
+	}
+}
+
 func TestCompiler_Errors(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -79,7 +148,8 @@ func TestCompiler_Errors(t *testing.T) {
 		{"missing expression semicolon", "1", "Expected ';' after expression."},
 		{"unclosed grouping", "(1;", "Expected ')' after expression."},
 		{"missing expression", "print;", "Expected expression"},
-		{"not supported yet", "1 + 2;", "Expected ';' after expression."},
+		{"missing right operand", "1 +;", "Expected expression"},
+		{"binary without left operand", "* 2;", "Expected expression"},
 	}
 
 	for _, tt := range tests {
