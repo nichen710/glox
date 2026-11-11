@@ -7,10 +7,13 @@ import (
 	"log"
 	"os"
 
+	"glox/pkg/compiler"
 	"glox/pkg/interpreter"
 	"glox/pkg/parser"
 	"glox/pkg/resolver"
 	"glox/pkg/scanner"
+	"glox/pkg/token"
+	"glox/pkg/vm"
 )
 
 const (
@@ -18,6 +21,7 @@ const (
 	ModeScanning Mode = "scanning"
 	ModeParsing  Mode = "parsing"
 	ModeResolve  Mode = "resolve"
+	ModeCompile  Mode = "compile"
 )
 
 type (
@@ -25,22 +29,26 @@ type (
 		mode         Mode
 		debug        bool
 		inRepl       bool
+		useVM        bool
 		interpreter  *interpreter.Interpreter
 		bindingTable *resolver.BindingTable
+		vm           *vm.VM
 	}
 
 	Mode string
 )
 
-func NewGlox(mode Mode) *Glox {
+func NewGlox(mode Mode, useVM bool) *Glox {
 	table := resolver.NewBindingTable()
 	interp := interpreter.NewInterpreter()
 	interp.SetBindings(table)
 
 	return &Glox{
 		mode:         mode,
+		useVM:        useVM,
 		interpreter:  interp,
 		bindingTable: table,
+		vm:           vm.NewVM(),
 	}
 }
 
@@ -56,6 +64,11 @@ func (g *Glox) Run(source string) {
 		for _, tok := range tokens {
 			fmt.Println(tok)
 		}
+		return
+	}
+
+	if g.mode == ModeCompile || g.useVM {
+		g.runBytecode(tokens)
 		return
 	}
 
@@ -99,6 +112,24 @@ func (g *Glox) Run(source string) {
 	}
 }
 
+func (g *Glox) runBytecode(tokens []token.Token) {
+	cmplr := compiler.NewCompiler(tokens)
+	chnk, err := cmplr.Compile()
+	if err != nil {
+		fmt.Printf("Compile Error: %v\n", err)
+		return
+	}
+
+	if g.mode == ModeCompile {
+		fmt.Println(chnk)
+		return
+	}
+
+	if err := g.vm.Run(chnk); err != nil {
+		fmt.Printf("Runtime Error: %v\n", err)
+	}
+}
+
 func (g *Glox) RunFile(path string) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
@@ -135,6 +166,8 @@ func main() {
 	scanningFlag := flag.Bool("scanning", false, "Run in scanning mode (prints tokens)")
 	parsingFlag := flag.Bool("parsing", false, "Run in parsing mode (prints AST)")
 	resolveFlag := flag.Bool("resolve", false, "Run in resolve mode (prints resolved scopes)")
+	compileFlag := flag.Bool("compile", false, "Run in compile mode (prints bytecode)")
+	vmFlag := flag.Bool("vm", false, "Execute compiling to bytecode instead of tree-walk")
 	helpFlag := flag.Bool("help", false, "Print help message")
 
 	flag.Parse()
@@ -151,9 +184,11 @@ func main() {
 		mode = ModeParsing
 	} else if *resolveFlag {
 		mode = ModeResolve
+	} else if *compileFlag {
+		mode = ModeCompile
 	}
 
-	app := NewGlox(mode)
+	app := NewGlox(mode, *vmFlag)
 
 	args := flag.Args()
 	if len(args) > 1 {
