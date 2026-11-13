@@ -106,6 +106,15 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 			} else if val, err = vm.peek(offset); err == nil {
 				vm.globals[name] = val
 			}
+		case chunk.OP_GET_LOCAL:
+			slot := vm.readByte()
+			vm.push(vm.stack[slot])
+		case chunk.OP_SET_LOCAL:
+			var val any
+			slot := vm.readByte()
+			if val, err = vm.peek(offset); err == nil {
+				vm.stack[slot] = val
+			}
 		case chunk.OP_RETURN:
 			return nil
 		default:

@@ -200,8 +200,41 @@ func TestVM_GlobalsPersistBetweenRuns(t *testing.T) {
 	}
 }
 
+func TestVM_LocalVariables(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"declare and print", "{ var a = 1; print a; }", "1\n"},
+		{"declare without value", "{ var a; print a; }", "nil\n"},
+		{"assign", "{ var a = 1; a = 2; print a; }", "2\n"},
+		{"assignment is an expression", "{ var a; print a = 3; }", "3\n"},
+		{"many locals", "{ var a = 1; var b = 2; var c = a + b; print c; }", "3\n"},
+		{"nested scopes", "{ var a = 1; { var b = 2; print a + b; } print a; }", "3\n1\n"},
+		{"shadowing", "{ var a = 1; { var a = 2; print a; } print a; }", "2\n1\n"},
+		{"shadowing a global", "var a = 1; { var a = 2; print a; } print a;", "2\n1\n"},
+		{"assign global from block", "var a = 1; { a = 2; } print a;", "2\n"},
+		{"assign outer local", "{ var a = 1; { a = 2; } print a; }", "2\n"},
+		{"initialize with outer variable", "var a = 1; { var b = a + 1; print b; }", "2\n"},
+		{"slot reused after block", "{ { var a = 1; } var b = 2; print b; }", "2\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestVM_StackIsEmptyAfterStatements(t *testing.T) {
-	tokens, _ := scanner.NewScanner("1; print 2; (nil);").Scan()
+	tokens, _ := scanner.NewScanner("1; print 2; (nil); { var a = 1; { var b = a; } }").Scan()
 	c, _ := compiler.NewCompiler(tokens).Compile()
 
 	machine := NewVM()

@@ -9,6 +9,7 @@ type Compiler struct {
 	tokens  []token.Token
 	current int
 	chunk   *chunk.Chunk
+	context *CompilerContext
 }
 
 func NewCompiler(tokens []token.Token) *Compiler {
@@ -16,6 +17,7 @@ func NewCompiler(tokens []token.Token) *Compiler {
 		tokens:  tokens,
 		current: 0,
 		chunk:   chunk.NewChunk(),
+		context: NewCompilerContext(),
 	}
 }
 
@@ -37,7 +39,31 @@ func (c *Compiler) statement() error {
 	if c.match(token.PRINT) {
 		return c.printStatement()
 	}
+	if c.match(token.LEFT_BRACE) {
+		return c.blockStatement()
+	}
 	return c.expressionStatement()
+}
+
+// Al cerrar el bloque sus variables locales se sacan del stack
+func (c *Compiler) blockStatement() error {
+	c.context.beginScope()
+	if err := c.block(); err != nil {
+		return err
+	}
+	for range c.context.endScope() {
+		c.emitOp(chunk.OP_POP)
+	}
+	return nil
+}
+
+func (c *Compiler) block() error {
+	for !c.check(token.RIGHT_BRACE) && !c.isAtEnd() {
+		if err := c.statement(); err != nil {
+			return err
+		}
+	}
+	return c.consume(token.RIGHT_BRACE, "Expected '}' after block.")
 }
 
 func (c *Compiler) varDeclaration() error {
@@ -45,11 +71,43 @@ func (c *Compiler) varDeclaration() error {
 		return err
 	}
 	name := c.previous()
-	index, err := c.identifierConstant(name)
-	if err != nil {
-		return err
+
+	if c.context.isGlobalScope() {
+		index, err := c.identifierConstant(name)
+		if err != nil {
+			return err
+		}
+		if err := c.varInitializer(); err != nil {
+			return err
+		}
+		c.emitOp(chunk.OP_DEFINE_GLOBAL)
+		c.chunk.Write(index)
+		return nil
 	}
 
+	if err := c.declareLocal(name); err != nil {
+		return err
+	}
+	if err := c.varInitializer(); err != nil {
+		return err
+	}
+	c.context.markInitialized()
+	return nil
+}
+
+func (c *Compiler) declareLocal(name token.Token) error {
+	if c.context.isDeclaredInCurrentScope(name.Lexeme) {
+		return NewCompileError(name, "Already a variable with this name in this scope.")
+	}
+	if c.context.isFull() {
+		return NewCompileError(name, "Too many local variables in scope.")
+	}
+	c.context.declare(name.Lexeme)
+	return nil
+}
+
+// Sin `=` la variable empieza en nil
+func (c *Compiler) varInitializer() error {
 	if c.match(token.EQUAL) {
 		if err := c.expression(); err != nil {
 			return err
@@ -57,13 +115,7 @@ func (c *Compiler) varDeclaration() error {
 	} else {
 		c.emitOp(chunk.OP_NIL)
 	}
-	if err := c.consume(token.SEMICOLON, "Expected ';' after variable declaration."); err != nil {
-		return err
-	}
-
-	c.emitOp(chunk.OP_DEFINE_GLOBAL)
-	c.chunk.Write(index)
-	return nil
+	return c.consume(token.SEMICOLON, "Expected ';' after variable declaration.")
 }
 
 func (c *Compiler) printStatement() error {
@@ -192,20 +244,34 @@ func (c *Compiler) binary(_ bool) error {
 
 // Si viene un `=` es una asignacion, si no es una lectura de la variable
 func (c *Compiler) variable(canAssign bool) error {
-	index, err := c.identifierConstant(c.previous())
-	if err != nil {
-		return err
+	name := c.previous()
+	getOp, setOp := chunk.OP_GET_GLOBAL, chunk.OP_SET_GLOBAL
+
+	var operand byte
+	slot, local := c.context.resolve(name.Lexeme)
+	if local != nil {
+		if !local.initialized {
+			return NewCompileError(name, "Can't read local variable in its own initializer.")
+		}
+		getOp, setOp = chunk.OP_GET_LOCAL, chunk.OP_SET_LOCAL
+		operand = byte(slot)
+	} else {
+		index, err := c.identifierConstant(name)
+		if err != nil {
+			return err
+		}
+		operand = index
 	}
 
 	if canAssign && c.match(token.EQUAL) {
 		if err := c.expression(); err != nil {
 			return err
 		}
-		c.emitOp(chunk.OP_SET_GLOBAL)
+		c.emitOp(setOp)
 	} else {
-		c.emitOp(chunk.OP_GET_GLOBAL)
+		c.emitOp(getOp)
 	}
-	c.chunk.Write(index)
+	c.chunk.Write(operand)
 	return nil
 }
 

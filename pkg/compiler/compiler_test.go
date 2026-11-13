@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -164,6 +165,48 @@ func TestCompiler_GlobalVariables(t *testing.T) {
 	}
 }
 
+func TestCompiler_LocalVariables(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"empty block", "{}", []string{}},
+		{"declaration", "{ var a = 1; }", []string{"OP_CONSTANT<1>", "OP_POP"}},
+		{"reference", "{ var a = 1; print a; }", []string{"OP_CONSTANT<1>", "OP_GET_LOCAL<@0>", "OP_PRINT", "OP_POP"}},
+		{"assignment", "{ var a; a = 2; }", []string{"OP_NIL", "OP_CONSTANT<2>", "OP_SET_LOCAL<@0>", "OP_POP", "OP_POP"}},
+		{"second slot", "{ var a = 1; var b = 2; print b; }", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GET_LOCAL<@1>", "OP_PRINT", "OP_POP", "OP_POP"}},
+		{"nested block", "{ var a = 1; { var b = a; } }", []string{"OP_CONSTANT<1>", "OP_GET_LOCAL<@0>", "OP_POP", "OP_POP"}},
+		{"shadowing", "{ var a = 1; { var a = 2; print a; } }", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GET_LOCAL<@1>", "OP_PRINT", "OP_POP", "OP_POP"}},
+		{"global inside block", "{ print a; }", []string{"OP_GET_GLOBAL<'a'>", "OP_PRINT"}},
+		{"slot reused after block", "{ { var a = 1; } var b = 2; print b; }", []string{"OP_CONSTANT<1>", "OP_POP", "OP_CONSTANT<2>", "OP_GET_LOCAL<@0>", "OP_PRINT", "OP_POP"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := compileSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected compile error on %q: %v", tt.input, err)
+			}
+			assertInstructions(t, c, append(tt.expected, "OP_RETURN"))
+		})
+	}
+}
+
+func TestCompiler_TooManyLocals(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString("{")
+	for i := 0; i <= MaxLocals; i++ {
+		fmt.Fprintf(&sb, "var a%d;", i)
+	}
+	sb.WriteString("}")
+
+	_, err := compileSource(t, sb.String())
+	if err == nil || !strings.Contains(err.Error(), "Too many local variables") {
+		t.Errorf("expected too many locals error, got %v", err)
+	}
+}
+
 func TestCompiler_Errors(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -181,6 +224,10 @@ func TestCompiler_Errors(t *testing.T) {
 		{"invalid assignment target", "a + b = 1;", "Invalid assignment target."},
 		{"assign to literal", "1 = 2;", "Invalid assignment target."},
 		{"assign to grouping", "(a) = 2;", "Invalid assignment target."},
+		{"unclosed block", "{ print 1;", "Expected '}' after block."},
+		{"redeclare local", "{ var a = 1; var a = 2; }", "Already a variable with this name in this scope."},
+		{"read local in own initializer", "{ var a = a; }", "Can't read local variable in its own initializer."},
+		{"shadow with own value", "var a = 1; { var a = a + 1; }", "Can't read local variable in its own initializer."},
 	}
 
 	for _, tt := range tests {

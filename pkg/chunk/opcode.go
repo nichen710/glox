@@ -26,6 +26,8 @@ const (
 	OP_DEFINE_GLOBAL
 	OP_GET_GLOBAL
 	OP_SET_GLOBAL
+	OP_GET_LOCAL
+	OP_SET_LOCAL
 )
 
 var opCodeNames = map[OpCode]string{
@@ -49,6 +51,8 @@ var opCodeNames = map[OpCode]string{
 	OP_DEFINE_GLOBAL: "OP_DEFINE_GLOBAL",
 	OP_GET_GLOBAL:    "OP_GET_GLOBAL",
 	OP_SET_GLOBAL:    "OP_SET_GLOBAL",
+	OP_GET_LOCAL:     "OP_GET_LOCAL",
+	OP_SET_LOCAL:     "OP_SET_LOCAL",
 }
 
 func (op OpCode) String() string {
