@@ -43,7 +43,7 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 	fmt.Fprintf(sb, "%04d| %s", offset, op)
 
 	switch op {
-	case OP_CONSTANT:
+	case OP_CONSTANT, OP_DEFINE_GLOBAL, OP_GET_GLOBAL, OP_SET_GLOBAL:
 		index := c.Code[offset+1]
 		fmt.Fprintf(sb, "<%s>\n", formatConstant(c.Constants[index]))
 		return offset + 2

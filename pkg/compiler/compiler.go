@@ -31,10 +31,39 @@ func (c *Compiler) Compile() (*chunk.Chunk, error) {
 
 // Statements: stack effect 0
 func (c *Compiler) statement() error {
+	if c.match(token.VAR) {
+		return c.varDeclaration()
+	}
 	if c.match(token.PRINT) {
 		return c.printStatement()
 	}
 	return c.expressionStatement()
+}
+
+func (c *Compiler) varDeclaration() error {
+	if err := c.consume(token.IDENTIFIER, "Expected variable name."); err != nil {
+		return err
+	}
+	name := c.previous()
+	index, err := c.identifierConstant(name)
+	if err != nil {
+		return err
+	}
+
+	if c.match(token.EQUAL) {
+		if err := c.expression(); err != nil {
+			return err
+		}
+	} else {
+		c.emitOp(chunk.OP_NIL)
+	}
+	if err := c.consume(token.SEMICOLON, "Expected ';' after variable declaration."); err != nil {
+		return err
+	}
+
+	c.emitOp(chunk.OP_DEFINE_GLOBAL)
+	c.chunk.Write(index)
+	return nil
 }
 
 func (c *Compiler) printStatement() error {
@@ -70,24 +99,31 @@ func (c *Compiler) parsePrecedence(precedence Precedence) error {
 	if rule.prefix == nil {
 		return newCompileErrorf(tok, "Expected expression, got `%s`.", tok.Lexeme)
 	}
-	if err := rule.prefix(c); err != nil {
+	// Solo una expresion de la precedencia mas baja puede ser target: `a + b = 1` no es valido
+	canAssign := precedence <= PREC_ASSIGNMENT
+	if err := rule.prefix(c, canAssign); err != nil {
 		return err
 	}
 
 	for precedence <= getRule(c.peek().Type).infixPrecedence {
 		c.advance()
-		if err := getRule(c.previous().Type).infix(c); err != nil {
+		if err := getRule(c.previous().Type).infix(c, canAssign); err != nil {
 			return err
 		}
+	}
+
+	// Si nadie consumio el `=`, lo que esta a la izquierda no era un target valido
+	if canAssign && c.match(token.EQUAL) {
+		return NewCompileError(c.previous(), "Invalid assignment target.")
 	}
 	return nil
 }
 
-func (c *Compiler) value() error {
+func (c *Compiler) value(_ bool) error {
 	return c.emitConstant(c.previous())
 }
 
-func (c *Compiler) literal() error {
+func (c *Compiler) literal(_ bool) error {
 	switch c.previous().Type {
 	case token.NIL:
 		c.emitOp(chunk.OP_NIL)
@@ -99,14 +135,14 @@ func (c *Compiler) literal() error {
 	return nil
 }
 
-func (c *Compiler) grouping() error {
+func (c *Compiler) grouping(_ bool) error {
 	if err := c.expression(); err != nil {
 		return err
 	}
 	return c.consume(token.RIGHT_PAREN, "Expected ')' after expression.")
 }
 
-func (c *Compiler) unary() error {
+func (c *Compiler) unary(_ bool) error {
 	operator := c.previous()
 	if err := c.parsePrecedence(getRule(operator.Type).prefixPrecedence); err != nil {
 		return err
@@ -121,7 +157,7 @@ func (c *Compiler) unary() error {
 	return nil
 }
 
-func (c *Compiler) binary() error {
+func (c *Compiler) binary(_ bool) error {
 	operator := c.previous()
 	if err := c.parsePrecedence(getRule(operator.Type).infixPrecedence + 1); err != nil {
 		return err
@@ -154,6 +190,25 @@ func (c *Compiler) binary() error {
 	return nil
 }
 
+// Si viene un `=` es una asignacion, si no es una lectura de la variable
+func (c *Compiler) variable(canAssign bool) error {
+	index, err := c.identifierConstant(c.previous())
+	if err != nil {
+		return err
+	}
+
+	if canAssign && c.match(token.EQUAL) {
+		if err := c.expression(); err != nil {
+			return err
+		}
+		c.emitOp(chunk.OP_SET_GLOBAL)
+	} else {
+		c.emitOp(chunk.OP_GET_GLOBAL)
+	}
+	c.chunk.Write(index)
+	return nil
+}
+
 func (c *Compiler) emitOp(op chunk.OpCode) {
 	c.chunk.Write(byte(op))
 }
@@ -165,13 +220,26 @@ func (c *Compiler) emitOps(ops ...chunk.OpCode) {
 }
 
 func (c *Compiler) emitConstant(tok token.Token) error {
-	index := c.chunk.AddConstant(tok.Literal)
-	if index >= chunk.MaxConstants {
-		return NewCompileError(tok, "Too many constants in one chunk.")
+	index, err := c.makeConstant(tok, tok.Literal)
+	if err != nil {
+		return err
 	}
 	c.emitOp(chunk.OP_CONSTANT)
-	c.chunk.Write(byte(index))
+	c.chunk.Write(index)
 	return nil
+}
+
+// Los nombres de las variables globales se guardan como strings en el pool de constantes
+func (c *Compiler) identifierConstant(name token.Token) (byte, error) {
+	return c.makeConstant(name, name.Lexeme)
+}
+
+func (c *Compiler) makeConstant(tok token.Token, value any) (byte, error) {
+	index := c.chunk.AddConstant(value)
+	if index >= chunk.MaxConstants {
+		return 0, NewCompileError(tok, "Too many constants in one chunk.")
+	}
+	return byte(index), nil
 }
 
 func (c *Compiler) consume(tokenType token.TokenType, message string) error {

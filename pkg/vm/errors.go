@@ -29,6 +29,13 @@ func NewStackUnderflowError(offset int) *RuntimeError {
 	}
 }
 
+func NewUndefinedVariableError(offset int, name string) *RuntimeError {
+	return &RuntimeError{
+		Offset:  offset,
+		Message: fmt.Sprintf("Undefined variable '%s'.", name),
+	}
+}
+
 func NewUnknownOpCodeError(offset int, op chunk.OpCode) *RuntimeError {
 	return &RuntimeError{
 		Offset:  offset,

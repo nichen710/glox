@@ -130,6 +130,76 @@ func TestVM_OperatorErrors(t *testing.T) {
 	}
 }
 
+func TestVM_GlobalVariables(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"declare and print", "var a = 1; print a;", "1\n"},
+		{"declare without value", "var a; print a;", "nil\n"},
+		{"assign", "var a = 1; a = 2; print a;", "2\n"},
+		{"assignment is an expression", "var a; print a = 3;", "3\n"},
+		{"chained assignment", "var a; var b; a = b = 4; print a; print b;", "4\n4\n"},
+		{"use in expressions", `var a = "ho"; var b = a + "la"; print b;`, "hola\n"},
+		{"redeclare", "var a = 1; var a = 2; print a;", "2\n"},
+		{"self reference", "var a = 1; a = a + 1; print a;", "2\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_UndefinedVariables(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"reference", "print a;"},
+		{"assignment", "a = 1;"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runSource(t, tt.input)
+			if err == nil || !strings.Contains(err.Error(), "Undefined variable 'a'.") {
+				t.Errorf("expected undefined variable error, got %v", err)
+			}
+		})
+	}
+}
+
+// Las globales sobreviven entre ejecuciones, como entre lineas del REPL
+func TestVM_GlobalsPersistBetweenRuns(t *testing.T) {
+	machine := NewVM()
+	var out bytes.Buffer
+	machine.SetWriter(&out)
+
+	for _, source := range []string{"var a = 1;", "a = a + 1;", "print a;"} {
+		tokens, _ := scanner.NewScanner(source).Scan()
+		c, err := compiler.NewCompiler(tokens).Compile()
+		if err != nil {
+			t.Fatalf("unexpected compile error: %v", err)
+		}
+		if err := machine.Run(c); err != nil {
+			t.Fatalf("unexpected runtime error: %v", err)
+		}
+	}
+
+	if out.String() != "2\n" {
+		t.Errorf("got %q, want %q", out.String(), "2\n")
+	}
+}
+
 func TestVM_StackIsEmptyAfterStatements(t *testing.T) {
 	tokens, _ := scanner.NewScanner("1; print 2; (nil);").Scan()
 	c, _ := compiler.NewCompiler(tokens).Compile()

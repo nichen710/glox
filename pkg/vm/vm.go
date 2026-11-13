@@ -11,16 +11,18 @@ import (
 )
 
 type VM struct {
-	out   io.Writer
-	chunk *chunk.Chunk
-	ip    int
-	stack []any
+	out     io.Writer
+	chunk   *chunk.Chunk
+	ip      int
+	stack   []any
+	globals map[string]any
 }
 
 func NewVM() *VM {
 	return &VM{
-		out:   os.Stdout,
-		stack: make([]any, 0),
+		out:     os.Stdout,
+		stack:   make([]any, 0),
+		globals: make(map[string]any),
 	}
 }
 
@@ -81,6 +83,28 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 			var a, b any
 			if a, b, err = vm.popOperands(offset); err == nil {
 				vm.push(isEqual(a, b))
+			}
+		case chunk.OP_DEFINE_GLOBAL:
+			var val any
+			name := vm.readName()
+			if val, err = vm.pop(offset); err == nil {
+				vm.globals[name] = val
+			}
+		case chunk.OP_GET_GLOBAL:
+			name := vm.readName()
+			if val, ok := vm.globals[name]; ok {
+				vm.push(val)
+			} else {
+				err = NewUndefinedVariableError(offset, name)
+			}
+		case chunk.OP_SET_GLOBAL:
+			// peek y no pop: la asignacion es una expresion y deja su valor en el stack
+			var val any
+			name := vm.readName()
+			if _, ok := vm.globals[name]; !ok {
+				err = NewUndefinedVariableError(offset, name)
+			} else if val, err = vm.peek(offset); err == nil {
+				vm.globals[name] = val
 			}
 		case chunk.OP_RETURN:
 			return nil
@@ -185,8 +209,20 @@ func (vm *VM) readByte() byte {
 	return b
 }
 
+func (vm *VM) readName() string {
+	return vm.chunk.Constants[vm.readByte()].(string)
+}
+
 func (vm *VM) push(value any) {
 	vm.stack = append(vm.stack, value)
+}
+
+// Devuelve el tope del stack sin sacarlo
+func (vm *VM) peek(offset int) (any, error) {
+	if len(vm.stack) == 0 {
+		return nil, NewStackUnderflowError(offset)
+	}
+	return vm.stack[len(vm.stack)-1], nil
 }
 
 func (vm *VM) pop(offset int) (any, error) {

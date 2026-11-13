@@ -19,7 +19,7 @@ const (
 	PREC_PRIMARY
 )
 
-type parseFn func(c *Compiler) error
+type parseFn func(c *Compiler, canAssign bool) error
 
 type parseRule struct {
 	prefix           parseFn
@@ -53,6 +53,7 @@ func init() {
 		token.GREATER_EQUAL: {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
 		token.LESS:          {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
 		token.LESS_EQUAL:    {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
+		token.IDENTIFIER:    {(*Compiler).variable, nil, PREC_NONE, PREC_NONE},
 		token.EOF:           {nil, nil, PREC_NONE, PREC_NONE},
 	}
 }

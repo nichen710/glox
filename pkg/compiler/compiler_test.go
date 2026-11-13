@@ -138,6 +138,32 @@ func assertInstructions(t *testing.T, c *chunk.Chunk, expected []string) {
 	}
 }
 
+func TestCompiler_GlobalVariables(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"declaration", "var a = 1;", []string{"OP_CONSTANT<1>", "OP_DEFINE_GLOBAL<'a'>"}},
+		{"declaration without value", "var a;", []string{"OP_NIL", "OP_DEFINE_GLOBAL<'a'>"}},
+		{"reference", "print a;", []string{"OP_GET_GLOBAL<'a'>", "OP_PRINT"}},
+		{"assignment", "a = 2;", []string{"OP_CONSTANT<2>", "OP_SET_GLOBAL<'a'>", "OP_POP"}},
+		{"chained assignment", "a = b = 2;", []string{"OP_CONSTANT<2>", "OP_SET_GLOBAL<'b'>", "OP_SET_GLOBAL<'a'>", "OP_POP"}},
+		{"reference in expression", "print a + 1;", []string{"OP_GET_GLOBAL<'a'>", "OP_CONSTANT<1>", "OP_ADD", "OP_PRINT"}},
+		{"assignment with expression", "a = a * 2;", []string{"OP_GET_GLOBAL<'a'>", "OP_CONSTANT<2>", "OP_MULTIPLY", "OP_SET_GLOBAL<'a'>", "OP_POP"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := compileSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected compile error on %q: %v", tt.input, err)
+			}
+			assertInstructions(t, c, append(tt.expected, "OP_RETURN"))
+		})
+	}
+}
+
 func TestCompiler_Errors(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -150,6 +176,11 @@ func TestCompiler_Errors(t *testing.T) {
 		{"missing expression", "print;", "Expected expression"},
 		{"missing right operand", "1 +;", "Expected expression"},
 		{"binary without left operand", "* 2;", "Expected expression"},
+		{"var without name", "var = 1;", "Expected variable name."},
+		{"var without semicolon", "var a = 1", "Expected ';' after variable declaration."},
+		{"invalid assignment target", "a + b = 1;", "Invalid assignment target."},
+		{"assign to literal", "1 = 2;", "Invalid assignment target."},
+		{"assign to grouping", "(a) = 2;", "Invalid assignment target."},
 	}
 
 	for _, tt := range tests {
