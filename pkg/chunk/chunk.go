@@ -6,7 +6,6 @@ import (
 )
 
 const MaxConstants = 256
-
 const MaxJump = 1<<16 - 1
 
 type Chunk struct {
@@ -34,6 +33,15 @@ func (c *Chunk) AddConstant(value any) int {
 // Los operandos de los saltos son de 16 bits, big endian
 func (c *Chunk) ReadShort(offset int) int {
 	return int(c.Code[offset])<<8 | int(c.Code[offset+1])
+}
+
+func (c *Chunk) WriteShort(value int) {
+	c.Code = append(c.Code, byte(value>>8), byte(value))
+}
+
+func (c *Chunk) PatchShort(offset, value int) {
+	c.Code[offset] = byte(value >> 8)
+	c.Code[offset+1] = byte(value)
 }
 
 // Desensamblado del chunk, una instruccion por linea

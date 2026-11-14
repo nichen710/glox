@@ -5,12 +5,16 @@ import (
 	"glox/pkg/token"
 )
 
-type Compiler struct {
-	tokens  []token.Token
-	current int
-	chunk   *chunk.Chunk
-	context *CompilerContext
-}
+type (
+	stmtCompileFn func(c *Compiler) error
+
+	Compiler struct {
+		tokens  []token.Token
+		current int
+		chunk   *chunk.Chunk
+		context *CompilerContext
+	}
+)
 
 func NewCompiler(tokens []token.Token) *Compiler {
 	return &Compiler{
@@ -40,22 +44,28 @@ func (c *Compiler) declaration() error {
 }
 
 func (c *Compiler) statement() error {
-	if c.match(token.PRINT) {
-		return c.printStatement()
-	}
-	if c.match(token.IF) {
-		return c.ifStatement()
-	}
-	if c.match(token.WHILE) {
-		return c.whileStatement()
-	}
-	if c.match(token.FOR) {
-		return c.forStatement()
-	}
-	if c.match(token.LEFT_BRACE) {
-		return c.blockStatement()
+	if compileFn, ok := getStmtRule(c.peek().Type); ok {
+		c.advance()
+		return compileFn(c)
 	}
 	return c.expressionStatement()
+}
+
+func getStmtRule(tokenType token.TokenType) (stmtCompileFn, bool) {
+	switch tokenType {
+	case token.PRINT:
+		return (*Compiler).printStatement, true
+	case token.IF:
+		return (*Compiler).ifStatement, true
+	case token.WHILE:
+		return (*Compiler).whileStatement, true
+	case token.FOR:
+		return (*Compiler).forStatement, true
+	case token.LEFT_BRACE:
+		return (*Compiler).blockStatement, true
+	default:
+		return nil, false
+	}
 }
 
 // Al cerrar el bloque sus variables locales se sacan del stack
@@ -64,9 +74,7 @@ func (c *Compiler) blockStatement() error {
 	if err := c.block(); err != nil {
 		return err
 	}
-	for range c.context.endScope() {
-		c.emitOp(chunk.OP_POP)
-	}
+	c.endScope()
 	return nil
 }
 
@@ -93,8 +101,7 @@ func (c *Compiler) varDeclaration() error {
 		if err := c.varInitializer(); err != nil {
 			return err
 		}
-		c.emitOp(chunk.OP_DEFINE_GLOBAL)
-		c.chunk.Write(index)
+		c.emitOpByte(chunk.OP_DEFINE_GLOBAL, index)
 		return nil
 	}
 
@@ -232,9 +239,7 @@ func (c *Compiler) forStatement() error {
 		}
 		c.emitOp(chunk.OP_POP)
 	}
-	for range c.context.endScope() {
-		c.emitOp(chunk.OP_POP)
-	}
+	c.endScope()
 	return nil
 }
 
@@ -434,16 +439,26 @@ func (c *Compiler) variable(canAssign bool) error {
 		if err := c.expression(); err != nil {
 			return err
 		}
-		c.emitOp(setOp)
+		c.emitOpByte(setOp, operand)
 	} else {
-		c.emitOp(getOp)
+		c.emitOpByte(getOp, operand)
 	}
-	c.chunk.Write(operand)
 	return nil
+}
+
+func (c *Compiler) endScope() {
+	for range c.context.endScope() {
+		c.emitOp(chunk.OP_POP)
+	}
 }
 
 func (c *Compiler) emitOp(op chunk.OpCode) {
 	c.chunk.Write(byte(op))
+}
+
+func (c *Compiler) emitOpByte(op chunk.OpCode, operand byte) {
+	c.emitOp(op)
+	c.chunk.Write(operand)
 }
 
 func (c *Compiler) emitOps(ops ...chunk.OpCode) {
@@ -456,8 +471,7 @@ func (c *Compiler) emitOps(ops ...chunk.OpCode) {
 // esta el operando para emparcharlo despues
 func (c *Compiler) emitJump(op chunk.OpCode) int {
 	c.emitOp(op)
-	c.chunk.Write(0xFF)
-	c.chunk.Write(0xFF)
+	c.chunk.WriteShort(0xFFFF)
 	return len(c.chunk.Code) - 2
 }
 
@@ -467,8 +481,7 @@ func (c *Compiler) patchJump(operand int) error {
 	if jump > chunk.MaxJump {
 		return NewCompileError(c.previous(), "Too much code to jump over.")
 	}
-	c.chunk.Code[operand] = byte(jump >> 8)
-	c.chunk.Code[operand+1] = byte(jump)
+	c.chunk.PatchShort(operand, jump)
 	return nil
 }
 
@@ -479,8 +492,7 @@ func (c *Compiler) emitLoop(loopStart int) error {
 	if jump > chunk.MaxJump {
 		return NewCompileError(c.previous(), "Loop body too large.")
 	}
-	c.chunk.Write(byte(jump >> 8))
-	c.chunk.Write(byte(jump))
+	c.chunk.WriteShort(jump)
 	return nil
 }
 
@@ -489,8 +501,7 @@ func (c *Compiler) emitConstant(tok token.Token) error {
 	if err != nil {
 		return err
 	}
-	c.emitOp(chunk.OP_CONSTANT)
-	c.chunk.Write(index)
+	c.emitOpByte(chunk.OP_CONSTANT, index)
 	return nil
 }
 
