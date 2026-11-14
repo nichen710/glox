@@ -193,6 +193,62 @@ func TestCompiler_LocalVariables(t *testing.T) {
 	}
 }
 
+func TestCompiler_ControlFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"if", "if (true) print 1;", []string{"OP_TRUE", "OP_JUMP_IF_FALSE<+10>", "OP_POP", "OP_CONSTANT<1>", "OP_PRINT", "OP_JUMP<+4>", "OP_POP"}},
+		{"if else", "if (true) print 1; else print 2;", []string{"OP_TRUE", "OP_JUMP_IF_FALSE<+10>", "OP_POP", "OP_CONSTANT<1>", "OP_PRINT", "OP_JUMP<+7>", "OP_POP", "OP_CONSTANT<2>", "OP_PRINT"}},
+		{"and", "true and false;", []string{"OP_TRUE", "OP_JUMP_IF_FALSE<+5>", "OP_POP", "OP_FALSE", "OP_POP"}},
+		{"or", "true or false;", []string{"OP_TRUE", "OP_JUMP_IF_FALSE<+6>", "OP_JUMP<+5>", "OP_POP", "OP_FALSE", "OP_POP"}},
+		{"while", "while (false) print 1;", []string{"OP_FALSE", "OP_JUMP_IF_FALSE<+10>", "OP_POP", "OP_CONSTANT<1>", "OP_PRINT", "OP_LOOP<-8>", "OP_POP"}},
+		{"empty for", "for (;;) print 1;", []string{"OP_CONSTANT<1>", "OP_PRINT", "OP_LOOP<-3>"}},
+		{"for with local", "for (var i = 0; i < 2; i = i + 1) print i;", []string{
+			"OP_CONSTANT<0>",
+			"OP_GET_LOCAL<@0>", "OP_CONSTANT<2>", "OP_LESS", "OP_JUMP_IF_FALSE<+24>", "OP_POP",
+			"OP_JUMP<+14>",
+			"OP_GET_LOCAL<@0>", "OP_CONSTANT<1>", "OP_ADD", "OP_SET_LOCAL<@0>", "OP_POP", "OP_LOOP<-20>",
+			"OP_GET_LOCAL<@0>", "OP_PRINT", "OP_LOOP<-14>",
+			"OP_POP", "OP_POP",
+		}},
+		{"for with global initializer", "for (i = 0; false;) {}", []string{"OP_CONSTANT<0>", "OP_SET_GLOBAL<'i'>", "OP_POP", "OP_FALSE", "OP_JUMP_IF_FALSE<+7>", "OP_POP", "OP_LOOP<-5>", "OP_POP"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := compileSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected compile error on %q: %v", tt.input, err)
+			}
+			assertInstructions(t, c, append(tt.expected, "OP_RETURN"))
+		})
+	}
+}
+
+func TestCompiler_TooMuchCodeToJump(t *testing.T) {
+	// Cada `print a;` ocupa 3 bytes y no agrega constantes porque `a` es local
+	body := "var a;" + strings.Repeat("print a;", chunk.MaxJump/3+1)
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"if", "if (true) {" + body + "}", "Too much code to jump over."},
+		{"loop", "for (;;) {" + body + "}", "Loop body too large."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := compileSource(t, tt.input)
+			if err == nil || !strings.Contains(err.Error(), tt.expected) {
+				t.Errorf("got %v, want it to contain %q", err, tt.expected)
+			}
+		})
+	}
+}
+
 func TestCompiler_TooManyLocals(t *testing.T) {
 	var sb strings.Builder
 	sb.WriteString("{")
@@ -228,6 +284,17 @@ func TestCompiler_Errors(t *testing.T) {
 		{"redeclare local", "{ var a = 1; var a = 2; }", "Already a variable with this name in this scope."},
 		{"read local in own initializer", "{ var a = a; }", "Can't read local variable in its own initializer."},
 		{"shadow with own value", "var a = 1; { var a = a + 1; }", "Can't read local variable in its own initializer."},
+		{"if without left paren", "if true) print 1;", "Expected '(' after 'if'."},
+		{"if without right paren", "if (true print 1;", "Expected ')' after if condition."},
+		{"while without left paren", "while true) print 1;", "Expected '(' after 'while'."},
+		{"while without right paren", "while (true print 1;", "Expected ')' after while condition."},
+		{"for without left paren", "for var i = 0;;) print 1;", "Expected '(' after 'for'."},
+		{"for without condition semicolon", "for (;true) print 1;", "Expected ';' after loop condition."},
+		{"for without right paren", "for (;; 1 print 1;", "Expected ')' after for clauses."},
+		{"var as if body", "if (true) var a = 1;", "Expected expression"},
+		{"var as while body", "while (false) var a = 1;", "Expected expression"},
+		{"and without right operand", "true and;", "Expected expression"},
+		{"assign to logical", "a or b = 1;", "Invalid assignment target."},
 	}
 
 	for _, tt := range tests {

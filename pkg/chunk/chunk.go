@@ -7,6 +7,8 @@ import (
 
 const MaxConstants = 256
 
+const MaxJump = 1<<16 - 1
+
 type Chunk struct {
 	Code      []byte
 	Constants []any
@@ -27,6 +29,11 @@ func (c *Chunk) Write(b byte) {
 func (c *Chunk) AddConstant(value any) int {
 	c.Constants = append(c.Constants, value)
 	return len(c.Constants) - 1
+}
+
+// Los operandos de los saltos son de 16 bits, big endian
+func (c *Chunk) ReadShort(offset int) int {
+	return int(c.Code[offset])<<8 | int(c.Code[offset+1])
 }
 
 // Desensamblado del chunk, una instruccion por linea
@@ -51,6 +58,12 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 		slot := c.Code[offset+1]
 		fmt.Fprintf(sb, "<@%d>\n", slot)
 		return offset + 2
+	case OP_JUMP, OP_JUMP_IF_FALSE:
+		fmt.Fprintf(sb, "<+%d>\n", c.ReadShort(offset+1)+3)
+		return offset + 3
+	case OP_LOOP:
+		fmt.Fprintf(sb, "<-%d>\n", c.ReadShort(offset+1)-3)
+		return offset + 3
 	default:
 		sb.WriteString("\n")
 		return offset + 1

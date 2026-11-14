@@ -53,6 +53,8 @@ func init() {
 		token.GREATER_EQUAL: {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
 		token.LESS:          {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
 		token.LESS_EQUAL:    {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
+		token.AND:           {nil, (*Compiler).logicAnd, PREC_NONE, PREC_AND},
+		token.OR:            {nil, (*Compiler).logicOr, PREC_NONE, PREC_OR},
 		token.IDENTIFIER:    {(*Compiler).variable, nil, PREC_NONE, PREC_NONE},
 		token.EOF:           {nil, nil, PREC_NONE, PREC_NONE},
 	}

@@ -45,6 +45,25 @@ func TestChunk_Disassemble(t *testing.T) {
 	}
 }
 
+func TestChunk_DisassembleJumps(t *testing.T) {
+	c := NewChunk()
+	c.Write(byte(OP_JUMP_IF_FALSE))
+	c.Write(0)
+	c.Write(1)
+	c.Write(byte(OP_POP))
+	c.Write(byte(OP_LOOP))
+	c.Write(1)
+	c.Write(0)
+
+	expected := "0000| OP_JUMP_IF_FALSE<+4>\n" +
+		"0003| OP_POP\n" +
+		"0004| OP_LOOP<-253>"
+
+	if got := c.String(); got != expected {
+		t.Errorf("got:\n%s\nwant:\n%s", got, expected)
+	}
+}
+
 func TestOpCode_String(t *testing.T) {
 	tests := []struct {
 		op       OpCode

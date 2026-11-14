@@ -115,6 +115,18 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 			if val, err = vm.peek(offset); err == nil {
 				vm.stack[slot] = val
 			}
+		case chunk.OP_JUMP:
+			jump := vm.readShort()
+			vm.ip += jump
+		case chunk.OP_JUMP_IF_FALSE:
+			var cond any
+			jump := vm.readShort()
+			if cond, err = vm.peek(offset); err == nil && !isTruthy(cond) {
+				vm.ip += jump
+			}
+		case chunk.OP_LOOP:
+			jump := vm.readShort()
+			vm.ip -= jump
 		case chunk.OP_RETURN:
 			return nil
 		default:
@@ -216,6 +228,12 @@ func (vm *VM) readByte() byte {
 	b := vm.chunk.Code[vm.ip]
 	vm.ip++
 	return b
+}
+
+func (vm *VM) readShort() int {
+	value := vm.chunk.ReadShort(vm.ip)
+	vm.ip += 2
+	return value
 }
 
 func (vm *VM) readName() string {

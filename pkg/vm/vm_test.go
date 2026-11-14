@@ -233,8 +233,50 @@ func TestVM_LocalVariables(t *testing.T) {
 	}
 }
 
+func TestVM_ControlFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"if true", `if (true) print "si";`, "si\n"},
+		{"if false", `if (false) print "si";`, ""},
+		{"if else", `if (nil) print "si"; else print "no";`, "no\n"},
+		{"zero is truthy", `if (0) print "si";`, "si\n"},
+		{"else binds to nearest if", `if (true) if (false) print 1; else print 2;`, "2\n"},
+		{"and returns left if falsey", "print false and 1;", "false\n"},
+		{"and returns right", "print 1 and 2;", "2\n"},
+		{"or returns left if truthy", "print 1 or 2;", "1\n"},
+		{"or returns right", "print nil or 2;", "2\n"},
+		{"and binds tighter than or", "print false and 1 or 2;", "2\n"},
+		{"and short circuits", "var a = 1; false and (a = 2); print a;", "1\n"},
+		{"or short circuits", "var a = 1; true or (a = 2); print a;", "1\n"},
+		{"while", "var i = 0; while (i < 3) { print i; i = i + 1; }", "0\n1\n2\n"},
+		{"while false", `while (false) print "nunca";`, ""},
+		{"for", "for (var i = 0; i < 3; i = i + 1) print i;", "0\n1\n2\n"},
+		{"for without increment", "for (var i = 0; i < 2;) { print i; i = i + 1; }", "0\n1\n"},
+		{"for with global", "var i; for (i = 0; i < 2; i = i + 1) {} print i;", "2\n"},
+		{"for local does not leak", "var i = \"global\"; for (var i = 0; i < 1; i = i + 1) {} print i;", "global\n"},
+		{"nested loops", "var n = 0; for (var a = 0; a < 3; a = a + 1) for (var b = 0; b < 3; b = b + 1) n = n + 1; print n;", "9\n"},
+		{"fibonacci", "var a = 0; var temp; for (var b = 1; a < 20; b = temp + b) { print a; temp = a; a = b; }", "0\n1\n1\n2\n3\n5\n8\n13\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestVM_StackIsEmptyAfterStatements(t *testing.T) {
-	tokens, _ := scanner.NewScanner("1; print 2; (nil); { var a = 1; { var b = a; } }").Scan()
+	tokens, _ := scanner.NewScanner("1; print 2; (nil); { var a = 1; { var b = a; } }" +
+		"if (false) 1; else 2; if (true) 1; 1 and 2; nil or 2; for (var i = 0; i < 2; i = i + 1) { var j = i; }").Scan()
 	c, _ := compiler.NewCompiler(tokens).Compile()
 
 	machine := NewVM()
