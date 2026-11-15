@@ -5,9 +5,9 @@ import "testing"
 func TestChunk_WriteAndConstants(t *testing.T) {
 	c := NewChunk()
 	index := c.AddConstant(1.5)
-	c.Write(byte(OP_CONSTANT))
-	c.Write(byte(index))
-	c.Write(byte(OP_RETURN))
+	c.Write(byte(OP_CONSTANT), 1)
+	c.Write(byte(index), 1)
+	c.Write(byte(OP_RETURN), 1)
 
 	expectedCode := []byte{byte(OP_CONSTANT), 0, byte(OP_RETURN)}
 	if len(c.Code) != len(expectedCode) {
@@ -26,13 +26,13 @@ func TestChunk_WriteAndConstants(t *testing.T) {
 
 func TestChunk_Disassemble(t *testing.T) {
 	c := NewChunk()
-	c.Write(byte(OP_CONSTANT))
-	c.Write(byte(c.AddConstant(6.0)))
-	c.Write(byte(OP_CONSTANT))
-	c.Write(byte(c.AddConstant("abc")))
-	c.Write(byte(OP_TRUE))
-	c.Write(byte(OP_PRINT))
-	c.Write(byte(OP_RETURN))
+	c.Write(byte(OP_CONSTANT), 1)
+	c.Write(byte(c.AddConstant(6.0)), 1)
+	c.Write(byte(OP_CONSTANT), 2)
+	c.Write(byte(c.AddConstant("abc")), 2)
+	c.Write(byte(OP_TRUE), 3)
+	c.Write(byte(OP_PRINT), 3)
+	c.Write(byte(OP_RETURN), 4)
 
 	expected := "0000| OP_CONSTANT<6>\n" +
 		"0002| OP_CONSTANT<'abc'>\n" +
@@ -47,13 +47,13 @@ func TestChunk_Disassemble(t *testing.T) {
 
 func TestChunk_DisassembleJumps(t *testing.T) {
 	c := NewChunk()
-	c.Write(byte(OP_JUMP_IF_FALSE))
-	c.Write(0)
-	c.Write(1)
-	c.Write(byte(OP_POP))
-	c.Write(byte(OP_LOOP))
-	c.Write(1)
-	c.Write(0)
+	c.Write(byte(OP_JUMP_IF_FALSE), 1)
+	c.Write(0, 1)
+	c.Write(1, 1)
+	c.Write(byte(OP_POP), 2)
+	c.Write(byte(OP_LOOP), 3)
+	c.Write(1, 3)
+	c.Write(0, 3)
 
 	expected := "0000| OP_JUMP_IF_FALSE<+4>\n" +
 		"0003| OP_POP\n" +
@@ -85,5 +85,34 @@ func TestOpCode_String(t *testing.T) {
 				t.Errorf("got %s, want %s", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestChunk_DeduplicatesAndLines(t *testing.T) {
+	c := NewChunk()
+	i1 := c.AddConstant(42.0)
+	i2 := c.AddConstant(42.0)
+	i3 := c.AddConstant("x")
+	i4 := c.AddConstant("x")
+
+	if i1 != i2 || i3 != i4 {
+		t.Errorf("expected deduplicated indices, got (%d, %d) and (%d, %d)", i1, i2, i3, i4)
+	}
+	if len(c.Constants) != 2 {
+		t.Errorf("got %d constants, want 2", len(c.Constants))
+	}
+
+	c.Write(byte(OP_CONSTANT), 3)
+	c.Write(byte(i1), 3)
+	c.WriteShort(10, 5)
+
+	if got := c.LineAt(0); got != 3 {
+		t.Errorf("offset 0 line: got %d, want 3", got)
+	}
+	if got := c.LineAt(2); got != 5 {
+		t.Errorf("offset 2 line: got %d, want 5", got)
+	}
+	if got := c.LineAt(99); got != 0 {
+		t.Errorf("out-of-bounds offset line: got %d, want 0", got)
 	}
 }

@@ -7,11 +7,15 @@ import (
 )
 
 type RuntimeError struct {
+	Line    int
 	Offset  int
 	Message string
 }
 
 func (e *RuntimeError) Error() string {
+	if e.Line > 0 {
+		return fmt.Sprintf("[line %d | offset %04d] Error: %s", e.Line, e.Offset, e.Message)
+	}
 	return fmt.Sprintf("[offset %04d] Error: %s", e.Offset, e.Message)
 }
 

@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -134,6 +135,10 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 		}
 
 		if err != nil {
+			var runtimeErr *RuntimeError
+			if errors.As(err, &runtimeErr) && runtimeErr.Line == 0 {
+				runtimeErr.Line = vm.chunk.LineAt(runtimeErr.Offset)
+			}
 			return err
 		}
 	}

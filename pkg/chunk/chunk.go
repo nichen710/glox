@@ -10,22 +10,30 @@ const MaxJump = 1<<16 - 1
 
 type Chunk struct {
 	Code      []byte
+	Lines     []int
 	Constants []any
 }
 
 func NewChunk() *Chunk {
 	return &Chunk{
 		Code:      make([]byte, 0),
+		Lines:     make([]int, 0),
 		Constants: make([]any, 0),
 	}
 }
 
-func (c *Chunk) Write(b byte) {
+func (c *Chunk) Write(b byte, line int) {
 	c.Code = append(c.Code, b)
+	c.Lines = append(c.Lines, line)
 }
 
-// Agrega el valor al pool de constantes y devuelve su indice
+// Agrega el valor al pool de constantes (reutilizando si ya existe) y devuelve su indice
 func (c *Chunk) AddConstant(value any) int {
+	for i, existing := range c.Constants {
+		if existing == value {
+			return i
+		}
+	}
 	c.Constants = append(c.Constants, value)
 	return len(c.Constants) - 1
 }
@@ -35,13 +43,21 @@ func (c *Chunk) ReadShort(offset int) int {
 	return int(c.Code[offset])<<8 | int(c.Code[offset+1])
 }
 
-func (c *Chunk) WriteShort(value int) {
+func (c *Chunk) WriteShort(value int, line int) {
 	c.Code = append(c.Code, byte(value>>8), byte(value))
+	c.Lines = append(c.Lines, line, line)
 }
 
 func (c *Chunk) PatchShort(offset, value int) {
 	c.Code[offset] = byte(value >> 8)
 	c.Code[offset+1] = byte(value)
+}
+
+func (c *Chunk) LineAt(offset int) int {
+	if offset >= 0 && offset < len(c.Lines) {
+		return c.Lines[offset]
+	}
+	return 0
 }
 
 // Desensamblado del chunk, una instruccion por linea

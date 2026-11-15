@@ -312,9 +312,23 @@ func TestCompiler_Errors(t *testing.T) {
 }
 
 func TestCompiler_TooManyConstants(t *testing.T) {
-	source := strings.Repeat("1;", chunk.MaxConstants+1)
-	_, err := compileSource(t, source)
+	var sb strings.Builder
+	for i := 0; i <= chunk.MaxConstants; i++ {
+		fmt.Fprintf(&sb, "%d;", i)
+	}
+	_, err := compileSource(t, sb.String())
 	if err == nil || !strings.Contains(err.Error(), "Too many constants") {
 		t.Errorf("expected too many constants error, got %v", err)
+	}
+}
+
+func TestCompiler_DeduplicatesConstants(t *testing.T) {
+	source := strings.Repeat("1;", chunk.MaxConstants+10)
+	c, err := compileSource(t, source)
+	if err != nil {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+	if len(c.Constants) != 1 {
+		t.Errorf("got %d constants, want 1", len(c.Constants))
 	}
 }

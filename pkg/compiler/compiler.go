@@ -452,13 +452,21 @@ func (c *Compiler) endScope() {
 	}
 }
 
+func (c *Compiler) currentLine() int {
+	if c.current > 0 {
+		return c.previous().Line
+	}
+	return c.peek().Line
+}
+
 func (c *Compiler) emitOp(op chunk.OpCode) {
-	c.chunk.Write(byte(op))
+	c.chunk.Write(byte(op), c.currentLine())
 }
 
 func (c *Compiler) emitOpByte(op chunk.OpCode, operand byte) {
-	c.emitOp(op)
-	c.chunk.Write(operand)
+	line := c.currentLine()
+	c.chunk.Write(byte(op), line)
+	c.chunk.Write(operand, line)
 }
 
 func (c *Compiler) emitOps(ops ...chunk.OpCode) {
@@ -470,8 +478,9 @@ func (c *Compiler) emitOps(ops ...chunk.OpCode) {
 // Todavia no se sabe a donde salta: deja 0xFF 0xFF y devuelve donde
 // esta el operando para emparcharlo despues
 func (c *Compiler) emitJump(op chunk.OpCode) int {
-	c.emitOp(op)
-	c.chunk.WriteShort(0xFFFF)
+	line := c.currentLine()
+	c.chunk.Write(byte(op), line)
+	c.chunk.WriteShort(0xFFFF, line)
 	return len(c.chunk.Code) - 2
 }
 
@@ -487,12 +496,13 @@ func (c *Compiler) patchJump(operand int) error {
 
 // Salta para atras, contando los dos bytes del propio operando
 func (c *Compiler) emitLoop(loopStart int) error {
-	c.emitOp(chunk.OP_LOOP)
+	line := c.currentLine()
+	c.chunk.Write(byte(chunk.OP_LOOP), line)
 	jump := len(c.chunk.Code) - loopStart + 2
 	if jump > chunk.MaxJump {
 		return NewCompileError(c.previous(), "Loop body too large.")
 	}
-	c.chunk.WriteShort(jump)
+	c.chunk.WriteShort(jump, line)
 	return nil
 }
 

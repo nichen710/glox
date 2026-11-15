@@ -291,10 +291,10 @@ func TestVM_StackIsEmptyAfterStatements(t *testing.T) {
 
 func TestVM_RuntimeErrors(t *testing.T) {
 	underflow := chunk.NewChunk()
-	underflow.Write(byte(chunk.OP_POP))
+	underflow.Write(byte(chunk.OP_POP), 1)
 
 	unknown := chunk.NewChunk()
-	unknown.Write(255)
+	unknown.Write(255, 1)
 
 	tests := []struct {
 		name  string
@@ -312,5 +312,20 @@ func TestVM_RuntimeErrors(t *testing.T) {
 				t.Errorf("expected RuntimeError, got %v", err)
 			}
 		})
+	}
+}
+
+func TestVM_RuntimeErrorLine(t *testing.T) {
+	source := "var a = 1;\nvar b = 2;\nprint a / 0;"
+	_, err := runSource(t, source)
+	var runtimeErr *RuntimeError
+	if !errors.As(err, &runtimeErr) {
+		t.Fatalf("expected RuntimeError, got %v", err)
+	}
+	if runtimeErr.Line != 3 {
+		t.Errorf("got line %d, want 3", runtimeErr.Line)
+	}
+	if !strings.Contains(err.Error(), "[line 3 |") {
+		t.Errorf("expected formatted error with line 3, got %q", err.Error())
 	}
 }
