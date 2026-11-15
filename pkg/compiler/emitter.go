@@ -25,6 +25,13 @@ func (c *Compiler) emitOpByte(op chunk.OpCode, operand byte) {
 	c.chunk.Write(operand, line)
 }
 
+func (c *Compiler) emitOpShort(op chunk.OpCode, operand int) {
+	c.lastOpOffset = len(c.chunk.Code)
+	line := c.currentLine()
+	c.chunk.Write(byte(op), line)
+	c.chunk.WriteShort(operand, line)
+}
+
 func (c *Compiler) emitOps(ops ...chunk.OpCode) {
 	for _, op := range ops {
 		c.emitOp(op)
@@ -69,19 +76,31 @@ func (c *Compiler) emitConstant(tok token.Token) error {
 	if err != nil {
 		return err
 	}
-	c.emitOpByte(chunk.OP_CONSTANT, index)
+	if index < 256 {
+		c.emitOpByte(chunk.OP_CONSTANT, byte(index))
+	} else {
+		c.emitOpShort(chunk.OP_CONSTANT_LONG, index)
+	}
 	return nil
 }
 
 // Los nombres de las variables globales se guardan como strings en el pool de constantes
 func (c *Compiler) identifierConstant(name token.Token) (byte, error) {
-	return c.makeConstant(name, value.String(name.Lexeme))
+	return c.makeByteConstant(name, value.String(name.Lexeme))
 }
 
-func (c *Compiler) makeConstant(tok token.Token, val value.Value) (byte, error) {
+func (c *Compiler) makeByteConstant(tok token.Token, val value.Value) (byte, error) {
+	index := c.chunk.AddConstant(val)
+	if index >= 256 {
+		return 0, NewCompileError(tok, "Too many constants in one chunk.")
+	}
+	return byte(index), nil
+}
+
+func (c *Compiler) makeConstant(tok token.Token, val value.Value) (int, error) {
 	index := c.chunk.AddConstant(val)
 	if index >= chunk.MaxConstants {
 		return 0, NewCompileError(tok, "Too many constants in one chunk.")
 	}
-	return byte(index), nil
+	return index, nil
 }

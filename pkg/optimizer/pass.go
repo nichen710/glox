@@ -19,7 +19,7 @@ func instructionSize(c *chunk.Chunk, offset int) int {
 		chunk.OP_CALL,
 		chunk.OP_TAIL_CALL:
 		return 2
-	case chunk.OP_JUMP, chunk.OP_JUMP_IF_FALSE, chunk.OP_LOOP:
+	case chunk.OP_JUMP, chunk.OP_JUMP_IF_FALSE, chunk.OP_LOOP, chunk.OP_CONSTANT_LONG:
 		return 3
 	case chunk.OP_CLOSURE:
 		fnVal := c.Constants[c.Code[offset+1]]

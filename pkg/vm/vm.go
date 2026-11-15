@@ -49,6 +49,8 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 		switch op {
 		case chunk.OP_CONSTANT:
 			vm.push(vm.frame.chunk.Constants[vm.readByte()])
+		case chunk.OP_CONSTANT_LONG:
+			vm.push(vm.frame.chunk.Constants[vm.readShort()])
 		case chunk.OP_NIL:
 			vm.push(value.Nil())
 		case chunk.OP_TRUE:

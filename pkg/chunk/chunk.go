@@ -7,20 +7,24 @@ import (
 	"glox/pkg/value"
 )
 
-const MaxConstants = 256
-const MaxJump = 1<<16 - 1
+const (
+	MaxConstants = 1 << 16
+	MaxJump      = 1<<16 - 1
+)
 
 type Chunk struct {
-	Code      []byte
-	Lines     []int
-	Constants []value.Value
+	Code       []byte
+	Lines      []int
+	Constants  []value.Value
+	constIndex map[value.Value]int
 }
 
 func NewChunk() *Chunk {
 	return &Chunk{
-		Code:      make([]byte, 0),
-		Lines:     make([]int, 0),
-		Constants: make([]value.Value, 0),
+		Code:       make([]byte, 0),
+		Lines:      make([]int, 0),
+		Constants:  make([]value.Value, 0),
+		constIndex: make(map[value.Value]int),
 	}
 }
 
@@ -31,13 +35,16 @@ func (c *Chunk) Write(b byte, line int) {
 
 // Agrega el valor al pool de constantes (reutilizando si ya existe) y devuelve su indice
 func (c *Chunk) AddConstant(val value.Value) int {
-	for i, existing := range c.Constants {
-		if existing.Equals(val) {
-			return i
-		}
+	if c.constIndex == nil {
+		c.constIndex = make(map[value.Value]int)
 	}
+	if idx, ok := c.constIndex[val]; ok {
+		return idx
+	}
+	idx := len(c.Constants)
 	c.Constants = append(c.Constants, val)
-	return len(c.Constants) - 1
+	c.constIndex[val] = idx
+	return idx
 }
 
 // Los operandos de los saltos son de 16 bits, big endian
@@ -80,6 +87,10 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 		index := c.Code[offset+1]
 		fmt.Fprintf(sb, "<%s>\n", formatConstant(c.Constants[index]))
 		return offset + 2
+	case OP_CONSTANT_LONG:
+		index := c.ReadShort(offset + 1)
+		fmt.Fprintf(sb, "<%s>\n", formatConstant(c.Constants[index]))
+		return offset + 3
 	case OP_GET_LOCAL, OP_SET_LOCAL:
 		slot := c.Code[offset+1]
 		fmt.Fprintf(sb, "<@%d>\n", slot)

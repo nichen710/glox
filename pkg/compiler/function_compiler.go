@@ -42,7 +42,7 @@ func (fc *FunctionCompiler) Compile(c *Compiler) error {
 		return err
 	}
 
-	fnIndex, err := c.makeConstant(name, value.FromFunction(fn))
+	fnIndex, err := c.makeByteConstant(name, value.FromFunction(fn))
 	if err != nil {
 		return err
 	}
@@ -109,4 +109,3 @@ func (fc *FunctionCompiler) compileFunction(c *Compiler, name string) (*value.Fu
 		Chunk:        child.chunk,
 	}, child.context.upvalues, nil
 }
-

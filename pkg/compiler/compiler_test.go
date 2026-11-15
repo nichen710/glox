@@ -311,6 +311,21 @@ func TestCompiler_Errors(t *testing.T) {
 	}
 }
 
+func TestCompiler_ConstantLong(t *testing.T) {
+	var sb strings.Builder
+	for i := 0; i < 260; i++ {
+		fmt.Fprintf(&sb, "%d;", i)
+	}
+	c, err := compileSource(t, sb.String())
+	if err != nil {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+	got := c.String()
+	if !strings.Contains(got, "OP_CONSTANT_LONG<256>") {
+		t.Errorf("expected OP_CONSTANT_LONG<256> in disassembly")
+	}
+}
+
 func TestCompiler_TooManyConstants(t *testing.T) {
 	var sb strings.Builder
 	for i := 0; i <= chunk.MaxConstants; i++ {

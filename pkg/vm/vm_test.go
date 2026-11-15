@@ -499,3 +499,45 @@ func TestVM_ClosuresAndUpvalues(t *testing.T) {
 		})
 	}
 }
+
+func TestVM_ConstantLong(t *testing.T) {
+	var sb strings.Builder
+	for i := 0; i < 300; i++ {
+		sb.WriteString(strings.ReplaceAll("N;", "N", string(rune('0'+i/100))+string(rune('0'+(i/10)%10))+string(rune('0'+i%10))))
+	}
+	sb.WriteString("print 999;")
+	got, err := runSource(t, sb.String())
+	if err != nil {
+		t.Fatalf("unexpected runtime error: %v", err)
+	}
+	if got != "999\n" {
+		t.Errorf("got %q, want %q", got, "999\n")
+	}
+}
+
+func TestVM_Natives(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"random range", "var r = random(1, 5); print r >= 1 and r <= 5;", "true\n"},
+		{"random single", "print random(7, 7);", "7\n"},
+		{"sleep", "sleep(1); print true;", "true\n"},
+		{"toNumber valid", `print toNumber("42.5") + 1;`, "43.5\n"},
+		{"toNumber invalid", `print toNumber("abc");`, "nil\n"},
+		{"clear", "clear();", "\x1b[2J\x1b[H"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
