@@ -31,6 +31,7 @@ type (
 		debug        bool
 		inRepl       bool
 		useVM        bool
+		skipOpt      bool
 		interpreter  *interpreter.Interpreter
 		bindingTable *resolver.BindingTable
 		vm           *vm.VM
@@ -39,7 +40,7 @@ type (
 	Mode string
 )
 
-func NewGlox(mode Mode, useVM bool) *Glox {
+func NewGlox(mode Mode, useVM, skipOpt bool) *Glox {
 	table := resolver.NewBindingTable()
 	interp := interpreter.NewInterpreter()
 	interp.SetBindings(table)
@@ -47,6 +48,7 @@ func NewGlox(mode Mode, useVM bool) *Glox {
 	return &Glox{
 		mode:         mode,
 		useVM:        useVM,
+		skipOpt:      skipOpt,
 		interpreter:  interp,
 		bindingTable: table,
 		vm:           vm.NewVM(),
@@ -121,7 +123,9 @@ func (g *Glox) runBytecode(tokens []token.Token) {
 		return
 	}
 
-	optimizer.Optimize(chnk)
+	if !g.skipOpt {
+		optimizer.Optimize(chnk)
+	}
 
 	if g.mode == ModeCompile {
 		fmt.Println(chnk)
@@ -171,6 +175,7 @@ func main() {
 	resolveFlag := flag.Bool("resolve", false, "Run in resolve mode (prints resolved scopes)")
 	compileFlag := flag.Bool("compile", false, "Run in compile mode (prints bytecode)")
 	vmFlag := flag.Bool("vm", false, "Execute compiling to bytecode instead of tree-walk")
+	noOptFlag := flag.Bool("no-opt", false, "Disable bytecode optimization passes")
 	helpFlag := flag.Bool("help", false, "Print help message")
 
 	flag.Parse()
@@ -191,7 +196,7 @@ func main() {
 		mode = ModeCompile
 	}
 
-	app := NewGlox(mode, *vmFlag)
+	app := NewGlox(mode, *vmFlag, *noOptFlag)
 
 	args := flag.Args()
 	if len(args) > 1 {

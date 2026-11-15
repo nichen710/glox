@@ -1,0 +1,71 @@
+class Sorter {
+    init() {
+        this.comparisons = 0;
+        this.swaps = 0;
+    }
+
+    swap(arr, i, j) {
+        if (i != j) {
+            var tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+            this.swaps = this.swaps + 1;
+        }
+    }
+}
+
+class QuickSorter < Sorter {
+    init() {
+        super.init();
+    }
+
+    partition(arr, low, high) {
+        var pivot = arr[high];
+        var i = low - 1;
+        for (var j = low; j < high; j = j + 1) {
+            this.comparisons = this.comparisons + 1;
+            if (arr[j] <= pivot) {
+                i = i + 1;
+                this.swap(arr, i, j);
+            }
+        }
+        this.swap(arr, i + 1, high);
+        return i + 1;
+    }
+
+    sort(arr) {
+        var stack = [];
+        push(stack, 0);
+        push(stack, len(arr) - 1);
+
+        while (len(stack) > 0) {
+            var high = pop(stack);
+            var low = pop(stack);
+            if (low < high) {
+                var p = this.partition(arr, low, high);
+                if (p - 1 > low) {
+                    push(stack, low);
+                    push(stack, p - 1);
+                }
+                if (p + 1 < high) {
+                    push(stack, p + 1);
+                    push(stack, high);
+                }
+            }
+        }
+    }
+}
+
+var data = [];
+for (var i = 10000; i >= 1; i = i - 1) {
+    push(data, i);
+}
+var sorter = QuickSorter();
+var t0 = clock();
+sorter.sort(data);
+var elapsed = clock() - t0;
+print "Ordenado (10000 peor caso):";
+print data[0];
+print data[len(data) - 1];
+print sorter.comparisons;
+print elapsed;
