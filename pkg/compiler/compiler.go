@@ -5,7 +5,6 @@ import (
 	"glox/pkg/token"
 )
 
-
 const (
 	FnScript FunctionType = iota
 	FnFunction
@@ -15,24 +14,26 @@ type (
 	FunctionType uint8
 
 	Compiler struct {
-		enclosing  *Compiler
-		tokens     []token.Token
-		current    *int
-		chunk      *chunk.Chunk
-		context    *CompilerContext
-		fnType     FunctionType
-		statements []StatementCompiler
+		enclosing    *Compiler
+		tokens       []token.Token
+		current      *int
+		chunk        *chunk.Chunk
+		context      *CompilerContext
+		fnType       FunctionType
+		lastOpOffset int
+		statements   []StatementCompiler
 	}
 )
 
 func NewCompiler(tokens []token.Token) *Compiler {
 	pos := 0
 	return &Compiler{
-		tokens:  tokens,
-		current: &pos,
-		chunk:   chunk.NewChunk(),
-		context: NewCompilerContext(),
-		fnType:  FnScript,
+		tokens:       tokens,
+		current:      &pos,
+		chunk:        chunk.NewChunk(),
+		context:      NewCompilerContext(),
+		fnType:       FnScript,
+		lastOpOffset: -1,
 		statements: []StatementCompiler{
 			&PrintCompiler{},
 			&IfCompiler{},
@@ -47,13 +48,14 @@ func NewCompiler(tokens []token.Token) *Compiler {
 
 func (c *Compiler) newChild(fnType FunctionType) *Compiler {
 	return &Compiler{
-		enclosing:  c,
-		tokens:     c.tokens,
-		current:    c.current,
-		chunk:      chunk.NewChunk(),
-		context:    NewCompilerContext(),
-		fnType:     fnType,
-		statements: c.statements,
+		enclosing:    c,
+		tokens:       c.tokens,
+		current:      c.current,
+		chunk:        chunk.NewChunk(),
+		context:      NewCompilerContext(),
+		fnType:       fnType,
+		lastOpOffset: -1,
+		statements:   c.statements,
 	}
 }
 

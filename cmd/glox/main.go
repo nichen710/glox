@@ -9,6 +9,7 @@ import (
 
 	"glox/pkg/compiler"
 	"glox/pkg/interpreter"
+	"glox/pkg/optimizer"
 	"glox/pkg/parser"
 	"glox/pkg/resolver"
 	"glox/pkg/scanner"
@@ -119,6 +120,8 @@ func (g *Glox) runBytecode(tokens []token.Token) {
 		fmt.Printf("Compile Error: %v\n", err)
 		return
 	}
+
+	optimizer.Optimize(chnk)
 
 	if g.mode == ModeCompile {
 		fmt.Println(chnk)

@@ -3,6 +3,12 @@ package compiler
 const MaxLocals = 256
 
 type (
+	CompilerContext struct {
+		scopeDepth int // 0 es el scope global
+		locals     []local
+		upvalues   []upvalue
+	}
+
 	local struct {
 		name        string
 		depth       int
@@ -13,12 +19,6 @@ type (
 	upvalue struct {
 		index   byte
 		isLocal bool
-	}
-
-	CompilerContext struct {
-		scopeDepth int // 0 es el scope global
-		locals     []local
-		upvalues   []upvalue
 	}
 )
 

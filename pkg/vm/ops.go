@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"math"
+
 	"glox/pkg/chunk"
 	"glox/pkg/value"
 )
@@ -40,18 +42,25 @@ func (vm *VM) add(offset int) error {
 	return newRuntimeErrorf(offset, "Operands of OP_ADD must be either numbers or strings, got: `%v, %v`", a, b)
 }
 
-// Solo aceptan numeros, popean los dos operandos y pushean el resultado
-func (vm *VM) numberOp(offset int, op chunk.OpCode, operation func(a, b float64) value.Value) error {
-	a, b, err := vm.popNumbers(offset, op.String())
+func (vm *VM) sub(offset int) error {
+	a, b, err := vm.popNumbers(offset, "OP_SUBTRACT")
 	if err != nil {
 		return err
 	}
-	vm.push(operation(a, b))
+	vm.push(value.Number(a - b))
 	return nil
 }
 
-// No permite dividir por cero
-func (vm *VM) divide(offset int, op chunk.OpCode, operation func(a, b float64) value.Value) error {
+func (vm *VM) mul(offset int) error {
+	a, b, err := vm.popNumbers(offset, "OP_MULTIPLY")
+	if err != nil {
+		return err
+	}
+	vm.push(value.Number(a * b))
+	return nil
+}
+
+func (vm *VM) div(offset int, op chunk.OpCode) error {
 	a, b, err := vm.popNumbers(offset, op.String())
 	if err != nil {
 		return err
@@ -59,7 +68,47 @@ func (vm *VM) divide(offset int, op chunk.OpCode, operation func(a, b float64) v
 	if b == 0 {
 		return newRuntimeErrorf(offset, "Division by %v is not allowed in %s", b, op)
 	}
-	vm.push(operation(a, b))
+	if op == chunk.OP_MODULO {
+		vm.push(value.Number(math.Mod(a, b)))
+	} else {
+		vm.push(value.Number(a / b))
+	}
+	return nil
+}
+
+func (vm *VM) greater(offset int) error {
+	a, b, err := vm.popNumbers(offset, "OP_GREATER")
+	if err != nil {
+		return err
+	}
+	vm.push(value.Bool(a > b))
+	return nil
+}
+
+func (vm *VM) greaterEqual(offset int) error {
+	a, b, err := vm.popNumbers(offset, "OP_GREATER_EQUAL")
+	if err != nil {
+		return err
+	}
+	vm.push(value.Bool(a >= b))
+	return nil
+}
+
+func (vm *VM) less(offset int) error {
+	a, b, err := vm.popNumbers(offset, "OP_LESS")
+	if err != nil {
+		return err
+	}
+	vm.push(value.Bool(a < b))
+	return nil
+}
+
+func (vm *VM) lessEqual(offset int) error {
+	a, b, err := vm.popNumbers(offset, "OP_LESS_EQUAL")
+	if err != nil {
+		return err
+	}
+	vm.push(value.Bool(a <= b))
 	return nil
 }
 

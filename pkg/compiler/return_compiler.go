@@ -28,7 +28,9 @@ func (rc *ReturnCompiler) Compile(c *Compiler) error {
 	if err := c.consume(token.SEMICOLON, "Expected ';' after return value."); err != nil {
 		return err
 	}
+	if c.lastOpOffset >= 0 && chunk.OpCode(c.chunk.Code[c.lastOpOffset]) == chunk.OP_CALL {
+		c.chunk.Code[c.lastOpOffset] = byte(chunk.OP_TAIL_CALL)
+	}
 	c.emitOp(chunk.OP_RETURN)
 	return nil
 }
-

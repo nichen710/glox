@@ -14,10 +14,12 @@ func (c *Compiler) currentLine() int {
 }
 
 func (c *Compiler) emitOp(op chunk.OpCode) {
+	c.lastOpOffset = len(c.chunk.Code)
 	c.chunk.Write(byte(op), c.currentLine())
 }
 
 func (c *Compiler) emitOpByte(op chunk.OpCode, operand byte) {
+	c.lastOpOffset = len(c.chunk.Code)
 	line := c.currentLine()
 	c.chunk.Write(byte(op), line)
 	c.chunk.Write(operand, line)
@@ -32,6 +34,7 @@ func (c *Compiler) emitOps(ops ...chunk.OpCode) {
 // Todavia no se sabe a donde salta: deja 0xFF 0xFF y devuelve donde
 // esta el operando para emparcharlo despues
 func (c *Compiler) emitJump(op chunk.OpCode) int {
+	c.lastOpOffset = len(c.chunk.Code)
 	line := c.currentLine()
 	c.chunk.Write(byte(op), line)
 	c.chunk.WriteShort(0xFFFF, line)
@@ -50,6 +53,7 @@ func (c *Compiler) patchJump(operand int) error {
 
 // Salta para atras, contando los dos bytes del propio operando
 func (c *Compiler) emitLoop(loopStart int) error {
+	c.lastOpOffset = len(c.chunk.Code)
 	line := c.currentLine()
 	c.chunk.Write(byte(chunk.OP_LOOP), line)
 	jump := len(c.chunk.Code) - loopStart + 2

@@ -454,8 +454,7 @@ func TestVM_ClosuresAndUpvalues(t *testing.T) {
 			test();`,
 			"1\n42\n",
 		},
-		{
-			"closed on block exit",
+		{"closed on block exit",
 			`var f;
 			{
 				var x = "block";
@@ -464,6 +463,27 @@ func TestVM_ClosuresAndUpvalues(t *testing.T) {
 			}
 			f();`,
 			"block\n",
+		},
+		{
+			"deep tail recursion",
+			`fun sumTail(n, acc) {
+				if (n <= 0) return acc;
+				return sumTail(n - 1, acc + n);
+			}
+			print sumTail(10000, 0);`,
+			"50005000\n",
+		},
+		{
+			"tail call closes upvalues",
+			`fun make(n) {
+				var x = n;
+				fun get() { return x; }
+				if (n <= 0) return get;
+				return make(n - 1);
+			}
+			var g = make(5);
+			print g();`,
+			"0\n",
 		},
 	}
 

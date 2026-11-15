@@ -84,7 +84,7 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 		slot := c.Code[offset+1]
 		fmt.Fprintf(sb, "<@%d>\n", slot)
 		return offset + 2
-	case OP_CALL:
+	case OP_CALL, OP_TAIL_CALL:
 		argCount := c.Code[offset+1]
 		fmt.Fprintf(sb, "<%d>\n", argCount)
 		return offset + 2

@@ -74,6 +74,36 @@ func (vm *VM) callNative(offset int, nat *value.Native, calleeIdx, argCount int)
 	return nil
 }
 
+func (vm *VM) tailCallValue(offset, argCount int) error {
+	calleeIdx := len(vm.stack) - 1 - argCount
+	if calleeIdx < 0 {
+		return NewStackUnderflowError(offset)
+	}
+
+	callee := vm.stack[calleeIdx]
+	switch callee.Kind {
+	case value.KindClosure:
+		return vm.tailCallClosure(offset, callee.Clos, calleeIdx, argCount)
+	case value.KindNative:
+		return vm.callNative(offset, callee.Nat, calleeIdx, argCount)
+	default:
+		return newRuntimeErrorf(offset, "Can only call functions.")
+	}
+}
+
+func (vm *VM) tailCallClosure(offset int, closure *value.Closure, calleeIdx, argCount int) error {
+	if argCount != closure.Fn.Arity {
+		return newRuntimeErrorf(offset, "Expected %d arguments but got %d.", closure.Fn.Arity, argCount)
+	}
+	vm.closeUpvalues(vm.frame.baseSlot)
+	copy(vm.stack[vm.frame.baseSlot:], vm.stack[calleeIdx+1:calleeIdx+1+argCount])
+	vm.stack = vm.stack[:vm.frame.baseSlot+argCount]
+	vm.frame.closure = closure
+	vm.frame.chunk = closure.Fn.Chunk.(*chunk.Chunk)
+	vm.frame.ip = 0
+	return nil
+}
+
 func (vm *VM) returnFromFrame(offset int) (bool, error) {
 	if len(vm.frames) == 1 {
 		if len(vm.stack) != 0 {

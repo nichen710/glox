@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 
 	"glox/pkg/chunk"
@@ -24,7 +23,7 @@ func NewVM() *VM {
 	vm := &VM{
 		out:     os.Stdout,
 		frames:  make([]CallFrame, 0, MaxFrames),
-		stack:   make([]value.Value, 0),
+		stack:   make([]value.Value, 0, 256),
 		globals: make(map[string]value.Value),
 	}
 	vm.registerNatives()
@@ -73,21 +72,28 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 		case chunk.OP_ADD:
 			err = vm.add(offset)
 		case chunk.OP_SUBTRACT:
-			err = vm.numberOp(offset, op, func(a, b float64) value.Value { return value.Number(a - b) })
+			err = vm.sub(offset)
 		case chunk.OP_MULTIPLY:
-			err = vm.numberOp(offset, op, func(a, b float64) value.Value { return value.Number(a * b) })
-		case chunk.OP_DIVIDE:
-			err = vm.divide(offset, op, func(a, b float64) value.Value { return value.Number(a / b) })
-		case chunk.OP_MODULO:
-			err = vm.divide(offset, op, func(a, b float64) value.Value { return value.Number(math.Mod(a, b)) })
+			err = vm.mul(offset)
+		case chunk.OP_DIVIDE, chunk.OP_MODULO:
+			err = vm.div(offset, op)
 		case chunk.OP_GREATER:
-			err = vm.numberOp(offset, op, func(a, b float64) value.Value { return value.Bool(a > b) })
+			err = vm.greater(offset)
+		case chunk.OP_GREATER_EQUAL:
+			err = vm.greaterEqual(offset)
 		case chunk.OP_LESS:
-			err = vm.numberOp(offset, op, func(a, b float64) value.Value { return value.Bool(a < b) })
+			err = vm.less(offset)
+		case chunk.OP_LESS_EQUAL:
+			err = vm.lessEqual(offset)
 		case chunk.OP_EQUAL:
 			var a, b value.Value
 			if a, b, err = vm.popOperands(offset); err == nil {
 				vm.push(value.Bool(a.Equals(b)))
+			}
+		case chunk.OP_NOT_EQUAL:
+			var a, b value.Value
+			if a, b, err = vm.popOperands(offset); err == nil {
+				vm.push(value.Bool(!a.Equals(b)))
 			}
 		case chunk.OP_DEFINE_GLOBAL:
 			var val value.Value
@@ -131,6 +137,8 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 			vm.frame.ip -= vm.readShort()
 		case chunk.OP_CALL:
 			err = vm.callValue(offset, int(vm.readByte()))
+		case chunk.OP_TAIL_CALL:
+			err = vm.tailCallValue(offset, int(vm.readByte()))
 		case chunk.OP_CLOSURE:
 			vm.buildClosure()
 		case chunk.OP_GET_UPVALUE:

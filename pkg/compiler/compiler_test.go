@@ -85,11 +85,11 @@ func TestCompiler_Operators(t *testing.T) {
 		{"divide", "1 / 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_DIVIDE"}},
 		{"modulo", "1 % 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_MODULO"}},
 		{"equal", "1 == 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_EQUAL"}},
-		{"not equal", "1 != 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_EQUAL", "OP_NOT"}},
+		{"not equal", "1 != 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_NOT_EQUAL"}},
 		{"greater", "1 > 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GREATER"}},
-		{"greater equal", "1 >= 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_LESS", "OP_NOT"}},
+		{"greater equal", "1 >= 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GREATER_EQUAL"}},
 		{"less", "1 < 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_LESS"}},
-		{"less equal", "1 <= 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_GREATER", "OP_NOT"}},
+		{"less equal", "1 <= 2;", []string{"OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_LESS_EQUAL"}},
 	}
 
 	for _, tt := range tests {

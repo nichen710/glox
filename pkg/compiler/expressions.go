@@ -94,15 +94,15 @@ func (c *Compiler) binary(_ bool) error {
 	case token.EQUAL_EQUAL:
 		c.emitOp(chunk.OP_EQUAL)
 	case token.BANG_EQUAL:
-		c.emitOps(chunk.OP_EQUAL, chunk.OP_NOT)
+		c.emitOp(chunk.OP_NOT_EQUAL)
 	case token.GREATER:
 		c.emitOp(chunk.OP_GREATER)
 	case token.GREATER_EQUAL:
-		c.emitOps(chunk.OP_LESS, chunk.OP_NOT)
+		c.emitOp(chunk.OP_GREATER_EQUAL)
 	case token.LESS:
 		c.emitOp(chunk.OP_LESS)
 	case token.LESS_EQUAL:
-		c.emitOps(chunk.OP_GREATER, chunk.OP_NOT)
+		c.emitOp(chunk.OP_LESS_EQUAL)
 	}
 	return nil
 }
