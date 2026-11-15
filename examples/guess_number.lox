@@ -1,0 +1,85 @@
+// Adivina el numero (1 al 100) en Glox
+
+fun askNumber(min, max) {
+    while (true) {
+        print "Ingresa un numero entre 1 y 100 (o 'salir'):";
+        var line = input();
+        if (line == nil or line == "salir") {
+            return nil;
+        }
+
+        var num = toNumber(line);
+        if (num == nil) {
+            print "Ingrese un numero valido.";
+        } else if (num < min or num > max) {
+            print "El numero ingresado esta fuera de rango (1..100).";
+        } else {
+            return num;
+        }
+    }
+}
+
+fun playRound(maxAttempts) {
+    var secret = random(1, 100);
+    var attempts = 0;
+    var start = clock();
+
+    clear();
+    print "=== ADIVINA EL NUMERO ===";
+    print "Tenes 7 intentos para adivinar un numero entre 1 y 100.";
+    print "";
+
+    while (attempts < maxAttempts) {
+        var remaining = maxAttempts - attempts;
+        print "Intentos restantes:";
+        print remaining;
+
+        var guess = askNumber(1, 100);
+        if (guess == nil) {
+            print "Partida finalizada.";
+            return false;
+        }
+
+        attempts = attempts + 1;
+
+        if (guess == secret) {
+            var elapsed = clock() - start;
+            print "";
+            print "GANASTE!";
+            print "Intentos usados:";
+            print attempts;
+            print "Tiempo (segundos):";
+            print elapsed;
+            return true;
+        } else if (guess < secret) {
+            print "Proba con uno mas alto.";
+        } else {
+            print "Proba con uno mas bajo.";
+        }
+        print "";
+    }
+
+    print "Te quedaste sin intentos! El numero era:";
+    print secret;
+    return true;
+}
+
+fun main() {
+    var keepPlaying = true;
+    while (keepPlaying) {
+        var shouldContinue = playRound(7);
+        if (!shouldContinue) {
+            keepPlaying = false;
+        } else {
+            print "";
+            print "Queres jugar otra vez? (s/n):";
+            var answer = input();
+            if (answer != "s" and answer != "S") {
+                keepPlaying = false;
+            }
+        }
+    }
+    print "¡Hasta luego!";
+}
+
+main();

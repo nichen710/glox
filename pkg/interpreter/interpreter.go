@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"time"
 
 	"glox/pkg/environment"
 	"glox/pkg/expression"
@@ -24,16 +23,14 @@ type Interpreter struct {
 
 func NewInterpreter() *Interpreter {
 	globals := environment.NewEnvironment()
-	globals.Define("clock", NewNativeFunction("clock", 0, func(interpreter *Interpreter, arguments []any) (any, error) {
-		return float64(time.Now().UnixNano()) / 1e9, nil
-	}))
-
-	return &Interpreter{
+	interp := &Interpreter{
 		out:         os.Stdout,
 		globals:     globals,
 		environment: globals,
 		bindings:    nil,
 	}
+	interp.registerNatives()
+	return interp
 }
 
 func (i *Interpreter) SetWriter(w io.Writer) {
