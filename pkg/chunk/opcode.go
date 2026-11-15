@@ -32,6 +32,7 @@ const (
 	OP_JUMP
 	OP_JUMP_IF_FALSE
 	OP_LOOP
+	OP_CALL
 )
 
 var opCodeNames = map[OpCode]string{
@@ -60,6 +61,7 @@ var opCodeNames = map[OpCode]string{
 	OP_JUMP:          "OP_JUMP",
 	OP_JUMP_IF_FALSE: "OP_JUMP_IF_FALSE",
 	OP_LOOP:          "OP_LOOP",
+	OP_CALL:          "OP_CALL",
 }
 
 func (op OpCode) String() string {

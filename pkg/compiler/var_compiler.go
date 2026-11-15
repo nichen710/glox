@@ -31,24 +31,13 @@ func (vc *VarCompiler) Compile(c *Compiler) error {
 		return nil
 	}
 
-	if err := vc.declareLocal(c, name); err != nil {
+	if err := c.declareLocal(name); err != nil {
 		return err
 	}
 	if err := vc.initializer(c); err != nil {
 		return err
 	}
 	c.context.markInitialized()
-	return nil
-}
-
-func (vc *VarCompiler) declareLocal(c *Compiler, name token.Token) error {
-	if c.context.isDeclaredInCurrentScope(name.Lexeme) {
-		return NewCompileError(name, "Already a variable with this name in this scope.")
-	}
-	if c.context.isFull() {
-		return NewCompileError(name, "Too many local variables in scope.")
-	}
-	c.context.declare(name.Lexeme)
 	return nil
 }
 

@@ -332,3 +332,57 @@ func TestCompiler_DeduplicatesConstants(t *testing.T) {
 		t.Errorf("got %d constants, want 1", len(c.Constants))
 	}
 }
+
+func TestCompiler_Functions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"declaration", "fun f() {}", []string{"OP_CONSTANT<<fn f>>", "OP_DEFINE_GLOBAL<'f'>", "OP_RETURN"}},
+		{"call", "f(1, 2);", []string{"OP_GET_GLOBAL<'f'>", "OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_CALL<2>", "OP_POP", "OP_RETURN"}},
+		{"local function", "{ fun f() {} f(); }", []string{"OP_CONSTANT<<fn f>>", "OP_GET_LOCAL<@0>", "OP_CALL<0>", "OP_POP", "OP_POP", "OP_RETURN"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := compileSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected compile error: %v", err)
+			}
+			got := c.String()
+			for _, want := range tt.expected {
+				if !strings.Contains(got, want) {
+					t.Errorf("expected %q in:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestCompiler_FunctionErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"return at top level", "return 1;", "Can't return from top-level code."},
+		{"fun as if body", "if (true) fun f() {}", "Expected expression"},
+		{"missing paren", "fun f {}", "Expected '(' after function name."},
+		{"missing brace", "fun f() return 1;", "Expected '{' before function body."},
+		{"missing return semicolon", "fun f() { return 1 }", "Expected ';' after return value."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := compileSource(t, tt.input)
+			var compileErr *CompileError
+			if !errors.As(err, &compileErr) {
+				t.Fatalf("expected CompileError, got %v", err)
+			}
+			if !strings.Contains(err.Error(), tt.expected) {
+				t.Errorf("got %q, want it to contain %q", err.Error(), tt.expected)
+			}
+		})
+	}
+}

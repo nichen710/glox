@@ -165,3 +165,26 @@ func (c *Compiler) variable(canAssign bool) error {
 	}
 	return nil
 }
+
+func (c *Compiler) call(_ bool) error {
+	argCount := 0
+	if !c.check(token.RIGHT_PAREN) {
+		for {
+			if err := c.expression(); err != nil {
+				return err
+			}
+			if argCount >= MaxArgs {
+				return NewCompileError(c.previous(), "Can't have more than 255 arguments.")
+			}
+			argCount++
+			if !c.match(token.COMMA) {
+				break
+			}
+		}
+	}
+	if err := c.consume(token.RIGHT_PAREN, "Expected ')' after arguments."); err != nil {
+		return err
+	}
+	c.emitOpByte(chunk.OP_CALL, byte(argCount))
+	return nil
+}

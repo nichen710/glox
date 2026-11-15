@@ -5,28 +5,53 @@ import (
 	"glox/pkg/token"
 )
 
-type Compiler struct {
-	tokens     []token.Token
-	current    int
-	chunk      *chunk.Chunk
-	context    *CompilerContext
-	statements []StatementCompiler
-}
+
+const (
+	FnScript FunctionType = iota
+	FnFunction
+)
+
+type (
+	FunctionType uint8
+
+	Compiler struct {
+		tokens     []token.Token
+		current    *int
+		chunk      *chunk.Chunk
+		context    *CompilerContext
+		fnType     FunctionType
+		statements []StatementCompiler
+	}
+)
 
 func NewCompiler(tokens []token.Token) *Compiler {
+	pos := 0
 	return &Compiler{
 		tokens:  tokens,
-		current: 0,
+		current: &pos,
 		chunk:   chunk.NewChunk(),
 		context: NewCompilerContext(),
+		fnType:  FnScript,
 		statements: []StatementCompiler{
 			&PrintCompiler{},
 			&IfCompiler{},
 			&WhileCompiler{},
 			&ForCompiler{},
 			&BlockCompiler{},
+			&ReturnCompiler{},
 			&ExpressionStatementCompiler{},
 		},
+	}
+}
+
+func (c *Compiler) newChild(fnType FunctionType) *Compiler {
+	return &Compiler{
+		tokens:     c.tokens,
+		current:    c.current,
+		chunk:      chunk.NewChunk(),
+		context:    NewCompilerContext(),
+		fnType:     fnType,
+		statements: c.statements,
 	}
 }
 
@@ -42,6 +67,9 @@ func (c *Compiler) Compile() (*chunk.Chunk, error) {
 
 // Statements: stack effect 0
 func (c *Compiler) declaration() error {
+	if c.check(token.FUN) {
+		return (&FunctionCompiler{}).Compile(c)
+	}
 	if c.check(token.VAR) {
 		return (&VarCompiler{}).Compile(c)
 	}
@@ -57,6 +85,15 @@ func (c *Compiler) statement() error {
 	return nil
 }
 
+func (c *Compiler) block() error {
+	for !c.check(token.RIGHT_BRACE) && !c.isAtEnd() {
+		if err := c.declaration(); err != nil {
+			return err
+		}
+	}
+	return c.consume(token.RIGHT_BRACE, "Expected '}' after block.")
+}
+
 func (c *Compiler) condition(openMessage, closeMessage string) error {
 	if err := c.consume(token.LEFT_PAREN, openMessage); err != nil {
 		return err
@@ -65,6 +102,17 @@ func (c *Compiler) condition(openMessage, closeMessage string) error {
 		return err
 	}
 	return c.consume(token.RIGHT_PAREN, closeMessage)
+}
+
+func (c *Compiler) declareLocal(name token.Token) error {
+	if c.context.isDeclaredInCurrentScope(name.Lexeme) {
+		return NewCompileError(name, "Already a variable with this name in this scope.")
+	}
+	if c.context.isFull() {
+		return NewCompileError(name, "Too many local variables in scope.")
+	}
+	c.context.declare(name.Lexeme)
+	return nil
 }
 
 func (c *Compiler) endScope() {
@@ -96,7 +144,7 @@ func (c *Compiler) check(tokenType token.TokenType) bool {
 func (c *Compiler) advance() token.Token {
 	tok := c.peek()
 	if !c.isAtEnd() {
-		c.current++
+		*c.current++
 	}
 	return tok
 }
@@ -106,9 +154,9 @@ func (c *Compiler) isAtEnd() bool {
 }
 
 func (c *Compiler) peek() token.Token {
-	return c.tokens[c.current]
+	return c.tokens[*c.current]
 }
 
 func (c *Compiler) previous() token.Token {
-	return c.tokens[c.current-1]
+	return c.tokens[*c.current-1]
 }

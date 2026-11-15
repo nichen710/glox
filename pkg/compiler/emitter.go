@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Compiler) currentLine() int {
-	if c.current > 0 {
+	if *c.current > 0 {
 		return c.previous().Line
 	}
 	return c.peek().Line

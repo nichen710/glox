@@ -329,3 +329,59 @@ func TestVM_RuntimeErrorLine(t *testing.T) {
 		t.Errorf("expected formatted error with line 3, got %q", err.Error())
 	}
 }
+
+func TestVM_Functions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"print function", "fun f() {} print f;", "<fn f>\n"},
+		{"print native", "print clock;", "<native fn>\n"},
+		{"implicit nil return", "fun f() { var x = 1; } print f();", "nil\n"},
+		{"bare return", "fun f() { return; print 1; } print f();", "nil\n"},
+		{"return value", "fun add(a, b) { return a + b; } print add(2, 3);", "5\n"},
+		{"nested calls", "fun sq(x) { return x * x; } fun sumSq(a, b) { return sq(a) + sq(b); } print sumSq(3, 4);", "25\n"},
+		{"recursion", "fun fib(n) { if (n <= 1) return n; return fib(n - 1) + fib(n - 2); } print fib(10);", "55\n"},
+		{"local function", "{ fun mul(a, b) { return a * b; } print mul(6, 7); }", "42\n"},
+		{"clock native", "var t = clock(); print t > 0;", "true\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_FunctionErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"call non-function", "var x = 1; x();", "Can only call functions."},
+		{"wrong arity", "fun f(a, b) {} f(1);", "Expected 2 arguments but got 1."},
+		{"native wrong arity", "clock(1);", "Expected 0 arguments but got 1."},
+		{"stack overflow", "fun f() { f(); } f();", "Stack overflow."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runSource(t, tt.input)
+			var runtimeErr *RuntimeError
+			if !errors.As(err, &runtimeErr) {
+				t.Fatalf("expected RuntimeError, got %v", err)
+			}
+			if !strings.Contains(err.Error(), tt.expected) {
+				t.Errorf("got %q, want it to contain %q", err.Error(), tt.expected)
+			}
+		})
+	}
+}

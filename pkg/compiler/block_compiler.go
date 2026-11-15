@@ -12,16 +12,9 @@ func (bc *BlockCompiler) CanCompile(c *Compiler) bool {
 func (bc *BlockCompiler) Compile(c *Compiler) error {
 	c.advance()
 	c.context.beginScope()
-
-	for !c.check(token.RIGHT_BRACE) && !c.isAtEnd() {
-		if err := c.declaration(); err != nil {
-			return err
-		}
-	}
-	if err := c.consume(token.RIGHT_BRACE, "Expected '}' after block."); err != nil {
+	if err := c.block(); err != nil {
 		return err
 	}
-
 	c.endScope()
 	return nil
 }

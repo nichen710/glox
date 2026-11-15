@@ -6,24 +6,46 @@ import (
 	"io"
 	"math"
 	"os"
+	"time"
 
 	"glox/pkg/chunk"
 	"glox/pkg/value"
 )
 
-type VM struct {
-	out     io.Writer
-	chunk   *chunk.Chunk
-	ip      int
-	stack   []value.Value
-	globals map[string]value.Value
-}
+const MaxFrames = 256
+
+type (
+	CallFrame struct {
+		fn       *value.Function
+		chunk    *chunk.Chunk
+		ip       int
+		baseSlot int
+	}
+
+	VM struct {
+		out     io.Writer
+		frames  []CallFrame
+		frame   *CallFrame
+		stack   []value.Value
+		globals map[string]value.Value
+	}
+)
 
 func NewVM() *VM {
+	globals := make(map[string]value.Value)
+	globals["clock"] = value.FromNative(&value.Native{
+		Name:  "clock",
+		Arity: 0,
+		Fn: func(_ []value.Value) (value.Value, error) {
+			return value.Number(float64(time.Now().UnixNano()) / 1e9), nil
+		},
+	})
+
 	return &VM{
 		out:     os.Stdout,
+		frames:  make([]CallFrame, 0, MaxFrames),
 		stack:   make([]value.Value, 0),
-		globals: make(map[string]value.Value),
+		globals: globals,
 	}
 }
 
@@ -33,19 +55,19 @@ func (vm *VM) SetWriter(w io.Writer) {
 
 // Lee la instruccion apuntada por ip, la ejecuta y avanza hasta OP_RETURN
 func (vm *VM) Run(c *chunk.Chunk) error {
-	vm.chunk = c
-	vm.ip = 0
 	vm.stack = vm.stack[:0]
+	vm.frames = vm.frames[:0]
+	vm.pushFrame(&value.Function{Chunk: c}, 0)
 
-	for vm.ip < len(vm.chunk.Code) {
-		offset := vm.ip
+	for vm.frame.ip < len(vm.frame.chunk.Code) {
+		offset := vm.frame.ip
 		op := chunk.OpCode(vm.readByte())
 
 		var err error
 		switch op {
 		case chunk.OP_CONSTANT:
 			index := vm.readByte()
-			vm.push(vm.chunk.Constants[index])
+			vm.push(vm.frame.chunk.Constants[index])
 		case chunk.OP_NIL:
 			vm.push(value.Nil())
 		case chunk.OP_TRUE:
@@ -108,44 +130,113 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 				vm.globals[name] = val
 			}
 		case chunk.OP_GET_LOCAL:
-			slot := vm.readByte()
-			vm.push(vm.stack[slot])
+			slot := int(vm.readByte())
+			vm.push(vm.stack[vm.frame.baseSlot+slot])
 		case chunk.OP_SET_LOCAL:
 			var val value.Value
-			slot := vm.readByte()
+			slot := int(vm.readByte())
 			if val, err = vm.peek(offset); err == nil {
-				vm.stack[slot] = val
+				vm.stack[vm.frame.baseSlot+slot] = val
 			}
 		case chunk.OP_JUMP:
 			jump := vm.readShort()
-			vm.ip += jump
+			vm.frame.ip += jump
 		case chunk.OP_JUMP_IF_FALSE:
 			var cond value.Value
 			jump := vm.readShort()
 			if cond, err = vm.peek(offset); err == nil && !cond.IsTruthy() {
-				vm.ip += jump
+				vm.frame.ip += jump
 			}
 		case chunk.OP_LOOP:
 			jump := vm.readShort()
-			vm.ip -= jump
+			vm.frame.ip -= jump
+		case chunk.OP_CALL:
+			argCount := int(vm.readByte())
+			err = vm.callValue(offset, argCount)
 		case chunk.OP_RETURN:
-			if len(vm.stack) != 0 {
-				return newRuntimeErrorf(offset, "Inconsistent stack height at return: %d", len(vm.stack))
+			if len(vm.frames) == 1 {
+				if len(vm.stack) != 0 {
+					return vm.withLine(newRuntimeErrorf(offset, "Inconsistent stack height at return: %d", len(vm.stack)))
+				}
+				return nil
 			}
-			return nil
+			var result value.Value
+			if result, err = vm.pop(offset); err == nil {
+				vm.stack = vm.stack[:vm.frame.baseSlot-1]
+				vm.popFrame()
+				vm.push(result)
+			}
 		default:
 			err = NewUnknownOpCodeError(offset, op)
 		}
 
 		if err != nil {
-			var runtimeErr *RuntimeError
-			if errors.As(err, &runtimeErr) && runtimeErr.Line == 0 {
-				runtimeErr.Line = vm.chunk.LineAt(runtimeErr.Offset)
-			}
-			return err
+			return vm.withLine(err)
 		}
 	}
 	return nil
+}
+
+func (vm *VM) withLine(err error) error {
+	var runtimeErr *RuntimeError
+	if errors.As(err, &runtimeErr) && runtimeErr.Line == 0 && vm.frame != nil {
+		runtimeErr.Line = vm.frame.chunk.LineAt(runtimeErr.Offset)
+	}
+	return err
+}
+
+func (vm *VM) pushFrame(fn *value.Function, baseSlot int) {
+	vm.frames = append(vm.frames, CallFrame{
+		fn:       fn,
+		chunk:    fn.Chunk.(*chunk.Chunk),
+		ip:       0,
+		baseSlot: baseSlot,
+	})
+	vm.frame = &vm.frames[len(vm.frames)-1]
+}
+
+func (vm *VM) popFrame() {
+	vm.frames = vm.frames[:len(vm.frames)-1]
+	if len(vm.frames) > 0 {
+		vm.frame = &vm.frames[len(vm.frames)-1]
+	} else {
+		vm.frame = nil
+	}
+}
+
+func (vm *VM) callValue(offset, argCount int) error {
+	calleeIdx := len(vm.stack) - 1 - argCount
+	if calleeIdx < 0 {
+		return NewStackUnderflowError(offset)
+	}
+
+	callee := vm.stack[calleeIdx]
+	switch callee.Kind {
+	case value.KindFunction:
+		fn := callee.Fn
+		if argCount != fn.Arity {
+			return newRuntimeErrorf(offset, "Expected %d arguments but got %d.", fn.Arity, argCount)
+		}
+		if len(vm.frames) >= MaxFrames {
+			return newRuntimeErrorf(offset, "Stack overflow.")
+		}
+		vm.pushFrame(fn, calleeIdx+1)
+		return nil
+	case value.KindNative:
+		nat := callee.Nat
+		if argCount != nat.Arity {
+			return newRuntimeErrorf(offset, "Expected %d arguments but got %d.", nat.Arity, argCount)
+		}
+		res, err := nat.Fn(vm.stack[calleeIdx+1:])
+		if err != nil {
+			return newRuntimeErrorf(offset, "%v", err)
+		}
+		vm.stack = vm.stack[:calleeIdx]
+		vm.push(res)
+		return nil
+	default:
+		return newRuntimeErrorf(offset, "Can only call functions.")
+	}
 }
 
 func (vm *VM) negate(offset int) error {
@@ -233,19 +324,19 @@ func (vm *VM) popOperands(offset int) (value.Value, value.Value, error) {
 }
 
 func (vm *VM) readByte() byte {
-	b := vm.chunk.Code[vm.ip]
-	vm.ip++
+	b := vm.frame.chunk.Code[vm.frame.ip]
+	vm.frame.ip++
 	return b
 }
 
 func (vm *VM) readShort() int {
-	value := vm.chunk.ReadShort(vm.ip)
-	vm.ip += 2
-	return value
+	val := vm.frame.chunk.ReadShort(vm.frame.ip)
+	vm.frame.ip += 2
+	return val
 }
 
 func (vm *VM) readName() string {
-	name, _ := vm.chunk.Constants[vm.readByte()].AsString()
+	name, _ := vm.frame.chunk.Constants[vm.readByte()].AsString()
 	return name
 }
 

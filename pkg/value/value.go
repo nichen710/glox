@@ -10,6 +10,8 @@ const (
 	KindBool
 	KindNumber
 	KindString
+	KindFunction
+	KindNative
 )
 
 type (
@@ -20,6 +22,8 @@ type (
 		Bool bool
 		Num  float64
 		Str  string
+		Fn   *Function
+		Nat  *Native
 	}
 )
 
@@ -37,6 +41,14 @@ func Number(n float64) Value {
 
 func String(s string) Value {
 	return Value{Kind: KindString, Str: s}
+}
+
+func FromFunction(fn *Function) Value {
+	return Value{Kind: KindFunction, Fn: fn}
+}
+
+func FromNative(nat *Native) Value {
+	return Value{Kind: KindNative, Nat: nat}
 }
 
 func FromAny(v any) Value {
@@ -94,6 +106,10 @@ func (v Value) Equals(other Value) bool {
 		return v.Num == other.Num
 	case KindString:
 		return v.Str == other.Str
+	case KindFunction:
+		return v.Fn == other.Fn
+	case KindNative:
+		return v.Nat == other.Nat
 	default:
 		return false
 	}
@@ -112,6 +128,10 @@ func (v Value) String() string {
 		return strconv.FormatFloat(v.Num, 'f', -1, 64)
 	case KindString:
 		return v.Str
+	case KindFunction:
+		return v.Fn.String()
+	case KindNative:
+		return v.Nat.String()
 	default:
 		return ""
 	}
