@@ -2,9 +2,6 @@ package compiler
 
 import "glox/pkg/token"
 
-// Ordenados de menor a mayor precedencia
-type Precedence int
-
 const (
 	PREC_NONE Precedence = iota
 	PREC_ASSIGNMENT
@@ -19,17 +16,22 @@ const (
 	PREC_PRIMARY
 )
 
-type parseFn func(c *Compiler, canAssign bool) error
-
-type parseRule struct {
-	prefix           parseFn
-	infix            parseFn
-	prefixPrecedence Precedence
-	infixPrecedence  Precedence
-}
-
 // Tabla del Pratt parser
 var rules map[token.TokenType]parseRule
+
+type (
+	// Ordenados de menor a mayor precedencia
+	Precedence int
+
+	parseFn func(c *Compiler, canAssign bool) error
+
+	parseRule struct {
+		prefix           parseFn
+		infix            parseFn
+		prefixPrecedence Precedence
+		infixPrecedence  Precedence
+	}
+)
 
 func init() {
 	rules = map[token.TokenType]parseRule{
