@@ -42,6 +42,8 @@ func Stringify(value any) string {
 		return v
 	case Callable:
 		return v.String()
+	case *LoxInstance:
+		return v.String()
 	default:
 		return fmt.Sprintf("%v", v)
 	}

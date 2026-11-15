@@ -119,8 +119,45 @@ func (i *Interpreter) Execute(stmt statement.Statement) (any, error) {
 		}
 		return nil, nil
 	case statement.Function:
-		function := NewLoxFunction(s, i.environment)
+		function := NewLoxFunction(s, i.environment, false)
 		i.environment.Define(s.Name.Lexeme, function)
+		return nil, nil
+	case statement.Class:
+		var superclass *LoxClass
+		if s.Superclass != nil {
+			scVal, err := i.Evaluate(*s.Superclass)
+			if err != nil {
+				return nil, err
+			}
+			var ok bool
+			superclass, ok = scVal.(*LoxClass)
+			if !ok {
+				return nil, NewRuntimeError(s.Superclass.Name, "Superclass must be a class.")
+			}
+		}
+
+		i.environment.Define(s.Name.Lexeme, nil)
+
+		prevEnv := i.environment
+		if s.Superclass != nil {
+			i.environment = environment.NewEnclosedEnvironment(i.environment)
+			i.environment.Define("super", superclass)
+		}
+
+		methods := make(map[string]*LoxFunction, len(s.Methods))
+		for _, method := range s.Methods {
+			methods[method.Name.Lexeme] = NewLoxFunction(method, i.environment, method.Name.Lexeme == "init")
+		}
+
+		klass := NewLoxClass(s.Name.Lexeme, superclass, methods)
+
+		if s.Superclass != nil {
+			i.environment = prevEnv
+		}
+
+		if err := i.environment.Assign(s.Name.Lexeme, klass); err != nil {
+			return nil, NewRuntimeError(s.Name, err.Error())
+		}
 		return nil, nil
 	case statement.Return:
 		var val any
@@ -217,6 +254,56 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 		}
 
 		return function.Call(i, arguments)
+	case expression.Get:
+		object, err := i.Evaluate(e.Object)
+		if err != nil {
+			return nil, err
+		}
+		instance, ok := object.(*LoxInstance)
+		if !ok {
+			return nil, NewRuntimeError(e.Name, "Only instances have properties.")
+		}
+		return instance.Get(e.Name)
+	case expression.Set:
+		object, err := i.Evaluate(e.Object)
+		if err != nil {
+			return nil, err
+		}
+		instance, ok := object.(*LoxInstance)
+		if !ok {
+			return nil, NewRuntimeError(e.Name, "Only instances have fields.")
+		}
+		val, err := i.Evaluate(e.Value)
+		if err != nil {
+			return nil, err
+		}
+		instance.Set(e.Name, val)
+		return val, nil
+	case expression.This:
+		return i.lookUpVariable(e.ID, e.Keyword)
+	case expression.Super:
+		if i.bindings == nil {
+			return nil, NewRuntimeError(e.Keyword, "Super requires resolved bindings.")
+		}
+		distance, ok := i.bindings.Depth(e.ID)
+		if !ok {
+			return nil, NewRuntimeError(e.Keyword, "Unresolved 'super' expression.")
+		}
+		scVal, err := i.environment.GetAt(distance, "super")
+		if err != nil {
+			return nil, NewRuntimeError(e.Keyword, err.Error())
+		}
+		objVal, err := i.environment.GetAt(distance-1, "this")
+		if err != nil {
+			return nil, NewRuntimeError(e.Keyword, err.Error())
+		}
+		superclass := scVal.(*LoxClass)
+		instance := objVal.(*LoxInstance)
+		method := superclass.FindMethod(e.Method.Lexeme)
+		if method == nil {
+			return nil, newRuntimeErrorf(e.Method, "Undefined property '%s'.", e.Method.Lexeme)
+		}
+		return method.Bind(instance), nil
 	default:
 		return nil, fmt.Errorf("unknown expression type: %T", expr)
 	}

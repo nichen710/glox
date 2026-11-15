@@ -25,6 +25,7 @@ func NewParser(tokens []token.Token) *Parser {
 			&WhileFactory{},
 			&ForFactory{},
 			&FunctionFactory{},
+			&ClassFactory{},
 			&ReturnFactory{},
 			&ExpressionStatementFactory{},
 		},
@@ -73,6 +74,13 @@ func (p *Parser) assignment() expression.Expression {
 
 		if variable, ok := expr.(expression.Variable); ok {
 			return expression.NewAssign(variable.Name, value)
+		}
+		if get, ok := expr.(expression.Get); ok {
+			return expression.Set{
+				Object: get.Object,
+				Name:   get.Name,
+				Value:  value,
+			}
 		}
 
 		p._error = NewParseError(equals, "Invalid assignment target.")
@@ -133,6 +141,15 @@ func (p *Parser) call() expression.Expression {
 			expr = p.finishCall(expr)
 			if p._error != nil {
 				return nil
+			}
+		} else if p.match(token.DOT) {
+			if !p.match(token.IDENTIFIER) {
+				p._error = NewParseError(p.peek(), "Expected property name after '.'. Got "+p.peek().Lexeme+".")
+				return nil
+			}
+			expr = expression.Get{
+				Object: expr,
+				Name:   p.previous(),
 			}
 		} else {
 			break
@@ -200,6 +217,21 @@ func (p *Parser) primary() expression.Expression {
 		return expression.Grouping{Expression: expr}
 	}
 
+	if p.match(token.SUPER) {
+		keyword := p.previous()
+		if !p.match(token.DOT) {
+			p._error = NewParseError(p.peek(), "Expected '.' after 'super'. Got "+p.peek().Lexeme+".")
+			return nil
+		}
+		if !p.match(token.IDENTIFIER) {
+			p._error = NewParseError(p.peek(), "Expected superclass method name. Got "+p.peek().Lexeme+".")
+			return nil
+		}
+		return expression.NewSuper(keyword, p.previous())
+	}
+	if p.match(token.THIS) {
+		return expression.NewThis(p.previous())
+	}
 	if p.match(token.IDENTIFIER) {
 		return expression.NewVariable(p.previous())
 	}

@@ -11,6 +11,14 @@ import (
 const (
 	FunctionTypeNone FunctionType = iota
 	FunctionTypeFunction
+	FunctionTypeInitializer
+	FunctionTypeMethod
+)
+
+const (
+	ClassTypeNone ClassType = iota
+	ClassTypeClass
+	ClassTypeSubclass
 )
 
 const (
@@ -20,12 +28,15 @@ const (
 
 type FunctionType int
 
+type ClassType int
+
 type variableState int
 
 type BindingStep struct {
 	table           *BindingTable
 	scopes          []map[string]variableState
 	currentFunction FunctionType
+	currentClass    ClassType
 }
 
 func NewBindingStep(table *BindingTable) *BindingStep {
@@ -33,6 +44,7 @@ func NewBindingStep(table *BindingTable) *BindingStep {
 		table:           table,
 		scopes:          make([]map[string]variableState, 0),
 		currentFunction: FunctionTypeNone,
+		currentClass:    ClassTypeNone,
 	}
 }
 
@@ -80,6 +92,8 @@ func (s *BindingStep) resolveStatement(stmt statement.Statement) error {
 		}
 		s.define(st.Name)
 		return s.resolveFunction(st, FunctionTypeFunction)
+	case statement.Class:
+		return s.resolveClass(st)
 	case statement.ExpressionStatement:
 		return s.resolveExpression(st.Expression)
 	case statement.If:
@@ -100,6 +114,9 @@ func (s *BindingStep) resolveStatement(stmt statement.Statement) error {
 			return NewResolveError(st.Keyword, "Can't return from top-level code.")
 		}
 		if st.Value != nil {
+			if s.currentFunction == FunctionTypeInitializer {
+				return NewResolveError(st.Keyword, "Can't return a value from an initializer.")
+			}
 			return s.resolveExpression(st.Value)
 		}
 		return nil
@@ -158,9 +175,71 @@ func (s *BindingStep) resolveExpression(expr expression.Expression) error {
 		return s.resolveExpression(e.Right)
 	case expression.Unary:
 		return s.resolveExpression(e.Right)
+	case expression.Get:
+		return s.resolveExpression(e.Object)
+	case expression.Set:
+		if err := s.resolveExpression(e.Value); err != nil {
+			return err
+		}
+		return s.resolveExpression(e.Object)
+	case expression.This:
+		if s.currentClass == ClassTypeNone {
+			return NewResolveError(e.Keyword, "Can't use 'this' outside of a class.")
+		}
+		s.resolveLocal(e.ID, e.Keyword)
+		return nil
+	case expression.Super:
+		if s.currentClass == ClassTypeNone {
+			return NewResolveError(e.Keyword, "Can't use 'super' outside of a class.")
+		} else if s.currentClass != ClassTypeSubclass {
+			return NewResolveError(e.Keyword, "Can't use 'super' in a class with no superclass.")
+		}
+		s.resolveLocal(e.ID, e.Keyword)
+		return nil
 	default:
 		return fmt.Errorf("unknown expression type: %T", expr)
 	}
+}
+
+func (s *BindingStep) resolveClass(cls statement.Class) error {
+	enclosingClass := s.currentClass
+	s.currentClass = ClassTypeClass
+	defer func() {
+		s.currentClass = enclosingClass
+	}()
+
+	if err := s.declare(cls.Name); err != nil {
+		return err
+	}
+	s.define(cls.Name)
+
+	if cls.Superclass != nil {
+		if cls.Name.Lexeme == cls.Superclass.Name.Lexeme {
+			return NewResolveError(cls.Superclass.Name, "A class can't inherit from itself.")
+		}
+		s.currentClass = ClassTypeSubclass
+		if err := s.resolveExpression(*cls.Superclass); err != nil {
+			return err
+		}
+		s.beginScope()
+		s.scopes[len(s.scopes)-1]["super"] = variableDefined
+		defer s.endScope()
+	}
+
+	s.beginScope()
+	s.scopes[len(s.scopes)-1]["this"] = variableDefined
+	for _, method := range cls.Methods {
+		decl := FunctionTypeMethod
+		if method.Name.Lexeme == "init" {
+			decl = FunctionTypeInitializer
+		}
+		if err := s.resolveFunction(method, decl); err != nil {
+			s.endScope()
+			return err
+		}
+	}
+	s.endScope()
+	return nil
 }
 
 func (s *BindingStep) resolveFunction(fn statement.Function, fnType FunctionType) error {

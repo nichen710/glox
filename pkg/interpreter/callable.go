@@ -16,15 +16,23 @@ type Callable interface {
 }
 
 type LoxFunction struct {
-	declaration statement.Function
-	closure     *environment.Environment
+	declaration   statement.Function
+	closure       *environment.Environment
+	isInitializer bool
 }
 
-func NewLoxFunction(declaration statement.Function, closure *environment.Environment) *LoxFunction {
+func NewLoxFunction(declaration statement.Function, closure *environment.Environment, isInitializer bool) *LoxFunction {
 	return &LoxFunction{
-		declaration: declaration,
-		closure:     closure,
+		declaration:   declaration,
+		closure:       closure,
+		isInitializer: isInitializer,
 	}
+}
+
+func (f *LoxFunction) Bind(instance *LoxInstance) *LoxFunction {
+	env := environment.NewEnclosedEnvironment(f.closure)
+	env.Define("this", instance)
+	return NewLoxFunction(f.declaration, env, f.isInitializer)
 }
 
 func (f *LoxFunction) Arity() int {
@@ -41,9 +49,16 @@ func (f *LoxFunction) Call(interpreter *Interpreter, arguments []any) (any, erro
 	if err != nil {
 		var ret *ReturnSignal
 		if errors.As(err, &ret) {
+			if f.isInitializer {
+				return f.closure.GetAt(0, "this")
+			}
 			return ret.Value, nil
 		}
 		return nil, err
+	}
+
+	if f.isInitializer {
+		return f.closure.GetAt(0, "this")
 	}
 
 	return nil, nil

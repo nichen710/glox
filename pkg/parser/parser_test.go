@@ -1169,6 +1169,14 @@ func stripExprID(expr expression.Expression) expression.Expression {
 			}
 		}
 		return expression.Call{Callee: stripExprID(e.Callee), Paren: e.Paren, Arguments: args}
+	case expression.Get:
+		return expression.Get{Object: stripExprID(e.Object), Name: e.Name}
+	case expression.Set:
+		return expression.Set{Object: stripExprID(e.Object), Name: e.Name, Value: stripExprID(e.Value)}
+	case expression.This:
+		return expression.This{Keyword: e.Keyword}
+	case expression.Super:
+		return expression.Super{Keyword: e.Keyword, Method: e.Method}
 	default:
 		return expr
 	}
@@ -1209,10 +1217,81 @@ func stripStmtID(stmt statement.Statement) statement.Statement {
 		return statement.Function{Name: s.Name, Params: s.Params, Body: body}
 	case statement.Return:
 		return statement.Return{Keyword: s.Keyword, Value: stripExprID(s.Value)}
+	case statement.Class:
+		var methods []statement.Function
+		if s.Methods != nil {
+			methods = make([]statement.Function, len(s.Methods))
+			for i, m := range s.Methods {
+				methods[i] = stripStmtID(m).(statement.Function)
+			}
+		}
+		var sc *expression.Variable
+		if s.Superclass != nil {
+			v := stripExprID(*s.Superclass).(expression.Variable)
+			sc = &v
+		}
+		return statement.Class{Name: s.Name, Superclass: sc, Methods: methods}
 	default:
 		return stmt
 	}
 }
 
+func TestParser_OOP(t *testing.T) {
+	t.Run("class with inheritance and methods", func(t *testing.T) {
+		source := `class Dog < Animal { bark() { print super.speak(); print this.name; } }`
+		stmts := mustParseStatements(t, source)
+		if len(stmts) != 1 {
+			t.Fatalf("expected 1 statement, got %d", len(stmts))
+		}
+		cls, ok := stmts[0].(statement.Class)
+		if !ok {
+			t.Fatalf("expected statement.Class, got %T", stmts[0])
+		}
+		if cls.Name.Lexeme != "Dog" {
+			t.Errorf("expected class name Dog, got %q", cls.Name.Lexeme)
+		}
+		if cls.Superclass == nil || cls.Superclass.Name.Lexeme != "Animal" {
+			t.Errorf("expected superclass Animal, got %v", cls.Superclass)
+		}
+		if len(cls.Methods) != 1 || cls.Methods[0].Name.Lexeme != "bark" {
+			t.Errorf("expected 1 method 'bark', got %v", cls.Methods)
+		}
+	})
 
+	t.Run("property get and set", func(t *testing.T) {
+		got := stripExprID(mustParse(t, "a.b.c = 42"))
+		setExpr, ok := got.(expression.Set)
+		if !ok {
+			t.Fatalf("expected expression.Set, got %T", got)
+		}
+		if setExpr.Name.Lexeme != "c" {
+			t.Errorf("expected property 'c', got %q", setExpr.Name.Lexeme)
+		}
+		if _, ok := setExpr.Object.(expression.Get); !ok {
+			t.Errorf("expected inner expression.Get, got %T", setExpr.Object)
+		}
+	})
 
+	t.Run("invalid class syntax errors", func(t *testing.T) {
+		badSources := []string{
+			"class { }",
+			"class Foo < { }",
+			"class Foo",
+			"super.a;",
+			"super;",
+		}
+		// Only syntax errors should fail in parser (super.a is valid syntax, resolved later).
+		syntaxErrors := badSources[:3]
+		syntaxErrors = append(syntaxErrors, "super;", "obj.;")
+		for _, src := range syntaxErrors {
+			tokens, err := scanner.NewScanner(src).Scan()
+			if err != nil {
+				t.Fatalf("scan error for %q: %v", src, err)
+			}
+			_, err = NewParser(tokens).Parse()
+			if err == nil {
+				t.Errorf("expected parse error for %q, got nil", src)
+			}
+		}
+	})
+}

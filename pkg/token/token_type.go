@@ -7,6 +7,7 @@ const (
 	LEFT_BRACE                   // {
 	RIGHT_BRACE                  // }
 	COMMA                        // ,
+	DOT                          // .
 	MINUS                        // -
 	PLUS                         // +
 	SEMICOLON                    // ;
@@ -31,6 +32,7 @@ const (
 
 	// Keywords
 	AND
+	CLASS
 	ELSE
 	FALSE
 	FUN
@@ -40,6 +42,8 @@ const (
 	OR
 	PRINT
 	RETURN
+	SUPER
+	THIS
 	TRUE
 	VAR
 	WHILE
@@ -55,6 +59,7 @@ var tokenNames = [...]string{
 	LEFT_BRACE:    "LEFT_BRACE",
 	RIGHT_BRACE:   "RIGHT_BRACE",
 	COMMA:         "COMMA",
+	DOT:           "DOT",
 	MINUS:         "MINUS",
 	PLUS:          "PLUS",
 	SEMICOLON:     "SEMICOLON",
@@ -73,6 +78,7 @@ var tokenNames = [...]string{
 	STRING:        "STRING",
 	NUMBER:        "NUMBER",
 	AND:           "AND",
+	CLASS:         "CLASS",
 	ELSE:          "ELSE",
 	FALSE:         "FALSE",
 	FUN:           "FUN",
@@ -82,6 +88,8 @@ var tokenNames = [...]string{
 	OR:            "OR",
 	PRINT:         "PRINT",
 	RETURN:        "RETURN",
+	SUPER:         "SUPER",
+	THIS:          "THIS",
 	TRUE:          "TRUE",
 	VAR:           "VAR",
 	WHILE:         "WHILE",
@@ -91,6 +99,7 @@ var tokenNames = [...]string{
 // Keywords map
 var Keywords = map[string]TokenType{
 	"and":    AND,
+	"class":  CLASS,
 	"else":   ELSE,
 	"false":  FALSE,
 	"fun":    FUN,
@@ -100,6 +109,8 @@ var Keywords = map[string]TokenType{
 	"or":     OR,
 	"print":  PRINT,
 	"return": RETURN,
+	"super":  SUPER,
+	"this":   THIS,
 	"true":   TRUE,
 	"var":    VAR,
 	"while":  WHILE,

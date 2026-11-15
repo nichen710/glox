@@ -187,6 +187,24 @@ func TestScanningErrors(t *testing.T) {
 	}
 }
 
+func TestScanOOPTokens(t *testing.T) {
+	input := "class Sub < Base { init() { super.init(); this.x = 1; } }"
+	tokens, err := NewScanner(input).Scan()
+	if err != nil {
+		t.Fatalf("unexpected scan error: %v", err)
+	}
+
+	expected := []token.TokenType{
+		token.CLASS, token.IDENTIFIER, token.LESS, token.IDENTIFIER, token.LEFT_BRACE,
+		token.IDENTIFIER, token.LEFT_PAREN, token.RIGHT_PAREN, token.LEFT_BRACE,
+		token.SUPER, token.DOT, token.IDENTIFIER, token.LEFT_PAREN, token.RIGHT_PAREN, token.SEMICOLON,
+		token.THIS, token.DOT, token.IDENTIFIER, token.EQUAL, token.NUMBER, token.SEMICOLON,
+		token.RIGHT_BRACE, token.RIGHT_BRACE, token.EOF,
+	}
+
+	assertTokenTypes(t, tokens, expected)
+}
+
 func assertTokenTypes(t *testing.T, actual []token.Token, expected []token.TokenType) {
 	t.Helper()
 	if len(actual) != len(expected) {

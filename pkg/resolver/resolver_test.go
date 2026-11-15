@@ -240,3 +240,62 @@ func TestResolver_ResolverBuilder(t *testing.T) {
 		})
 	}
 }
+
+func TestResolver_OOPErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		expectedErr string
+	}{
+		{
+			name:        "this outside class",
+			source:      "print this;",
+			expectedErr: "Can't use 'this' outside of a class",
+		},
+		{
+			name:        "this inside top-level function",
+			source:      "fun f() { print this; }",
+			expectedErr: "Can't use 'this' outside of a class",
+		},
+		{
+			name:        "super outside class",
+			source:      "print super.foo();",
+			expectedErr: "Can't use 'super' outside of a class",
+		},
+		{
+			name:        "super in class without superclass",
+			source:      "class A { m() { super.m(); } }",
+			expectedErr: "Can't use 'super' in a class with no superclass",
+		},
+		{
+			name:        "class inherits from itself",
+			source:      "class A < A {}",
+			expectedErr: "A class can't inherit from itself",
+		},
+		{
+			name:        "return value from init",
+			source:      "class A { init() { return 1; } }",
+			expectedErr: "Can't return a value from an initializer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stmts := parseSource(t, tt.source)
+			table := NewBindingTable()
+			rslvr := NewDefaultResolver(table)
+
+			err := rslvr.Resolve(stmts)
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.expectedErr)
+			}
+			var resolveErr ResolveError
+			if !errors.As(err, &resolveErr) {
+				t.Fatalf("expected ResolveError, got %T: %v", err, err)
+			}
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("got %q, want error containing %q", err.Error(), tt.expectedErr)
+			}
+		})
+	}
+}
