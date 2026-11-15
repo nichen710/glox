@@ -3,6 +3,8 @@ package chunk
 import (
 	"fmt"
 	"strings"
+
+	"glox/pkg/value"
 )
 
 const MaxConstants = 256
@@ -11,14 +13,14 @@ const MaxJump = 1<<16 - 1
 type Chunk struct {
 	Code      []byte
 	Lines     []int
-	Constants []any
+	Constants []value.Value
 }
 
 func NewChunk() *Chunk {
 	return &Chunk{
 		Code:      make([]byte, 0),
 		Lines:     make([]int, 0),
-		Constants: make([]any, 0),
+		Constants: make([]value.Value, 0),
 	}
 }
 
@@ -28,13 +30,13 @@ func (c *Chunk) Write(b byte, line int) {
 }
 
 // Agrega el valor al pool de constantes (reutilizando si ya existe) y devuelve su indice
-func (c *Chunk) AddConstant(value any) int {
+func (c *Chunk) AddConstant(val value.Value) int {
 	for i, existing := range c.Constants {
-		if existing == value {
+		if existing.Equals(val) {
 			return i
 		}
 	}
-	c.Constants = append(c.Constants, value)
+	c.Constants = append(c.Constants, val)
 	return len(c.Constants) - 1
 }
 
@@ -94,9 +96,9 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 	}
 }
 
-func formatConstant(value any) string {
-	if s, ok := value.(string); ok {
+func formatConstant(val value.Value) string {
+	if s, ok := val.AsString(); ok {
 		return fmt.Sprintf("'%s'", s)
 	}
-	return fmt.Sprintf("%v", value)
+	return val.String()
 }

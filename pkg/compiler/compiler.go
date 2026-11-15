@@ -3,6 +3,7 @@ package compiler
 import (
 	"glox/pkg/chunk"
 	"glox/pkg/token"
+	"glox/pkg/value"
 )
 
 type (
@@ -507,7 +508,7 @@ func (c *Compiler) emitLoop(loopStart int) error {
 }
 
 func (c *Compiler) emitConstant(tok token.Token) error {
-	index, err := c.makeConstant(tok, tok.Literal)
+	index, err := c.makeConstant(tok, value.FromAny(tok.Literal))
 	if err != nil {
 		return err
 	}
@@ -517,11 +518,11 @@ func (c *Compiler) emitConstant(tok token.Token) error {
 
 // Los nombres de las variables globales se guardan como strings en el pool de constantes
 func (c *Compiler) identifierConstant(name token.Token) (byte, error) {
-	return c.makeConstant(name, name.Lexeme)
+	return c.makeConstant(name, value.String(name.Lexeme))
 }
 
-func (c *Compiler) makeConstant(tok token.Token, value any) (byte, error) {
-	index := c.chunk.AddConstant(value)
+func (c *Compiler) makeConstant(tok token.Token, val value.Value) (byte, error) {
+	index := c.chunk.AddConstant(val)
 	if index >= chunk.MaxConstants {
 		return 0, NewCompileError(tok, "Too many constants in one chunk.")
 	}

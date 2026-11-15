@@ -1,10 +1,14 @@
 package chunk
 
-import "testing"
+import (
+	"testing"
+
+	"glox/pkg/value"
+)
 
 func TestChunk_WriteAndConstants(t *testing.T) {
 	c := NewChunk()
-	index := c.AddConstant(1.5)
+	index := c.AddConstant(value.Number(1.5))
 	c.Write(byte(OP_CONSTANT), 1)
 	c.Write(byte(index), 1)
 	c.Write(byte(OP_RETURN), 1)
@@ -19,7 +23,7 @@ func TestChunk_WriteAndConstants(t *testing.T) {
 		}
 	}
 
-	if c.Constants[index] != 1.5 {
+	if !c.Constants[index].Equals(value.Number(1.5)) {
 		t.Errorf("constant %d: got %v, want 1.5", index, c.Constants[index])
 	}
 }
@@ -27,9 +31,9 @@ func TestChunk_WriteAndConstants(t *testing.T) {
 func TestChunk_Disassemble(t *testing.T) {
 	c := NewChunk()
 	c.Write(byte(OP_CONSTANT), 1)
-	c.Write(byte(c.AddConstant(6.0)), 1)
+	c.Write(byte(c.AddConstant(value.Number(6.0))), 1)
 	c.Write(byte(OP_CONSTANT), 2)
-	c.Write(byte(c.AddConstant("abc")), 2)
+	c.Write(byte(c.AddConstant(value.String("abc"))), 2)
 	c.Write(byte(OP_TRUE), 3)
 	c.Write(byte(OP_PRINT), 3)
 	c.Write(byte(OP_RETURN), 4)
@@ -90,10 +94,10 @@ func TestOpCode_String(t *testing.T) {
 
 func TestChunk_DeduplicatesAndLines(t *testing.T) {
 	c := NewChunk()
-	i1 := c.AddConstant(42.0)
-	i2 := c.AddConstant(42.0)
-	i3 := c.AddConstant("x")
-	i4 := c.AddConstant("x")
+	i1 := c.AddConstant(value.Number(42.0))
+	i2 := c.AddConstant(value.Number(42.0))
+	i3 := c.AddConstant(value.String("x"))
+	i4 := c.AddConstant(value.String("x"))
 
 	if i1 != i2 || i3 != i4 {
 		t.Errorf("expected deduplicated indices, got (%d, %d) and (%d, %d)", i1, i2, i3, i4)
