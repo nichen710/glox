@@ -20,6 +20,11 @@ func (i *Interpreter) registerNatives() {
 		NewNativeFunction("input", 0, inputNative),
 		NewNativeFunction("toNumber", 1, toNumberNative),
 		NewNativeFunction("clear", 0, clearNative),
+		NewNativeFunction("len", 1, lenNative),
+		NewNativeFunction("push", 2, pushNative),
+		NewNativeFunction("pop", 1, popNative),
+		NewNativeFunction("insert", 3, insertNative),
+		NewNativeFunction("remove", 2, removeNative),
 	}
 
 	for _, nat := range natives {
@@ -85,4 +90,66 @@ func clearNative(i *Interpreter, _ []any) (any, error) {
 	}
 	fmt.Fprint(w, "\x1b[2J\x1b[H")
 	return nil, nil
+}
+
+func lenNative(_ *Interpreter, args []any) (any, error) {
+	switch v := args[0].(type) {
+	case *LoxArray:
+		return float64(len(v.Elements)), nil
+	case string:
+		return float64(len(v)), nil
+	default:
+		return nil, fmt.Errorf("len(x) expects an array or string")
+	}
+}
+
+func pushNative(_ *Interpreter, args []any) (any, error) {
+	arr, ok := args[0].(*LoxArray)
+	if !ok {
+		return nil, fmt.Errorf("push(arr, val) expects an array as first argument")
+	}
+	arr.Elements = append(arr.Elements, args[1])
+	return float64(len(arr.Elements)), nil
+}
+
+func popNative(_ *Interpreter, args []any) (any, error) {
+	arr, ok := args[0].(*LoxArray)
+	if !ok {
+		return nil, fmt.Errorf("pop(arr) expects an array")
+	}
+	if len(arr.Elements) == 0 {
+		return nil, fmt.Errorf("pop(arr) cannot pop from empty array")
+	}
+	last := arr.Elements[len(arr.Elements)-1]
+	arr.Elements = arr.Elements[:len(arr.Elements)-1]
+	return last, nil
+}
+
+func insertNative(_ *Interpreter, args []any) (any, error) {
+	arr, ok := args[0].(*LoxArray)
+	if !ok {
+		return nil, fmt.Errorf("insert(arr, idx, val) expects an array as first argument")
+	}
+	idx, err := parseArrayIndex(args[1], len(arr.Elements), true)
+	if err != nil {
+		return nil, err
+	}
+	arr.Elements = append(arr.Elements, nil)
+	copy(arr.Elements[idx+1:], arr.Elements[idx:])
+	arr.Elements[idx] = args[2]
+	return float64(len(arr.Elements)), nil
+}
+
+func removeNative(_ *Interpreter, args []any) (any, error) {
+	arr, ok := args[0].(*LoxArray)
+	if !ok {
+		return nil, fmt.Errorf("remove(arr, idx) expects an array as first argument")
+	}
+	idx, err := parseArrayIndex(args[1], len(arr.Elements), false)
+	if err != nil {
+		return nil, err
+	}
+	removed := arr.Elements[idx]
+	arr.Elements = append(arr.Elements[:idx], arr.Elements[idx+1:]...)
+	return removed, nil
 }

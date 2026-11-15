@@ -38,6 +38,8 @@ func init() {
 		// TokenType: {prefix, infix, prefixPrecedence, infixPrecedence}
 		token.LEFT_PAREN:    {(*Compiler).grouping, (*Compiler).call, PREC_NONE, PREC_CALL},
 		token.RIGHT_PAREN:   {nil, nil, PREC_NONE, PREC_NONE},
+		token.LEFT_BRACKET:  {(*Compiler).arrayLiteral, (*Compiler).indexAccess, PREC_NONE, PREC_CALL},
+		token.RIGHT_BRACKET: {nil, nil, PREC_NONE, PREC_NONE},
 		token.DOT:           {nil, (*Compiler).dot, PREC_NONE, PREC_CALL},
 		token.NUMBER:        {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
 		token.STRING:        {(*Compiler).value, nil, PREC_NONE, PREC_NONE},

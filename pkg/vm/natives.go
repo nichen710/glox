@@ -22,6 +22,11 @@ func (vm *VM) registerNatives() {
 		{Name: "input", Arity: 0, Fn: inputNative},
 		{Name: "toNumber", Arity: 1, Fn: toNumberNative},
 		{Name: "clear", Arity: 0, Fn: vm.clearNative},
+		{Name: "len", Arity: 1, Fn: lenNative},
+		{Name: "push", Arity: 2, Fn: pushNative},
+		{Name: "pop", Arity: 1, Fn: popNative},
+		{Name: "insert", Arity: 3, Fn: insertNative},
+		{Name: "remove", Arity: 2, Fn: removeNative},
 	}
 
 	for _, nat := range natives {
@@ -83,4 +88,66 @@ func toNumberNative(args []value.Value) (value.Value, error) {
 func (vm *VM) clearNative(_ []value.Value) (value.Value, error) {
 	fmt.Fprint(vm.out, "\x1b[2J\x1b[H")
 	return value.Nil(), nil
+}
+
+func lenNative(args []value.Value) (value.Value, error) {
+	switch args[0].Kind {
+	case value.KindArray:
+		return value.Number(float64(len(args[0].Arr.Elements))), nil
+	case value.KindString:
+		return value.Number(float64(len(args[0].Str))), nil
+	default:
+		return value.Nil(), fmt.Errorf("len(x) expects an array or string")
+	}
+}
+
+func pushNative(args []value.Value) (value.Value, error) {
+	if args[0].Kind != value.KindArray {
+		return value.Nil(), fmt.Errorf("push(arr, val) expects an array as first argument")
+	}
+	args[0].Arr.Elements = append(args[0].Arr.Elements, args[1])
+	return value.Number(float64(len(args[0].Arr.Elements))), nil
+}
+
+func popNative(args []value.Value) (value.Value, error) {
+	if args[0].Kind != value.KindArray {
+		return value.Nil(), fmt.Errorf("pop(arr) expects an array")
+	}
+	elems := args[0].Arr.Elements
+	if len(elems) == 0 {
+		return value.Nil(), fmt.Errorf("pop(arr) cannot pop from empty array")
+	}
+	last := elems[len(elems)-1]
+	args[0].Arr.Elements = elems[:len(elems)-1]
+	return last, nil
+}
+
+func insertNative(args []value.Value) (value.Value, error) {
+	if args[0].Kind != value.KindArray {
+		return value.Nil(), fmt.Errorf("insert(arr, idx, val) expects an array as first argument")
+	}
+	elems := args[0].Arr.Elements
+	idx, err := parseArrayIndex(args[1], len(elems), true)
+	if err != nil {
+		return value.Nil(), err
+	}
+	elems = append(elems, value.Nil())
+	copy(elems[idx+1:], elems[idx:])
+	elems[idx] = args[2]
+	args[0].Arr.Elements = elems
+	return value.Number(float64(len(elems))), nil
+}
+
+func removeNative(args []value.Value) (value.Value, error) {
+	if args[0].Kind != value.KindArray {
+		return value.Nil(), fmt.Errorf("remove(arr, idx) expects an array as first argument")
+	}
+	elems := args[0].Arr.Elements
+	idx, err := parseArrayIndex(args[1], len(elems), false)
+	if err != nil {
+		return value.Nil(), err
+	}
+	removed := elems[idx]
+	args[0].Arr.Elements = append(elems[:idx], elems[idx+1:]...)
+	return removed, nil
 }

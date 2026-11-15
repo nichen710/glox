@@ -174,6 +174,12 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 			name := vm.readName()
 			argCount := int(vm.readByte())
 			err = vm.superInvoke(offset, name, argCount)
+		case chunk.OP_ARRAY:
+			err = vm.buildArray(offset, vm.readShort())
+		case chunk.OP_GET_INDEX:
+			err = vm.getIndex(offset)
+		case chunk.OP_SET_INDEX:
+			err = vm.setIndex(offset)
 		case chunk.OP_RETURN:
 			var done bool
 			if done, err = vm.returnFromFrame(offset); err == nil && done {

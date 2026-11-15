@@ -50,6 +50,9 @@ const (
 	OP_INHERIT
 	OP_GET_SUPER
 	OP_SUPER_INVOKE
+	OP_ARRAY
+	OP_GET_INDEX
+	OP_SET_INDEX
 )
 
 var opCodeNames = map[OpCode]string{
@@ -96,6 +99,9 @@ var opCodeNames = map[OpCode]string{
 	OP_INHERIT:       "OP_INHERIT",
 	OP_GET_SUPER:     "OP_GET_SUPER",
 	OP_SUPER_INVOKE:  "OP_SUPER_INVOKE",
+	OP_ARRAY:         "OP_ARRAY",
+	OP_GET_INDEX:     "OP_GET_INDEX",
+	OP_SET_INDEX:     "OP_SET_INDEX",
 }
 
 func (op OpCode) String() string {

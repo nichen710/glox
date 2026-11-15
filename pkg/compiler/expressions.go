@@ -289,3 +289,45 @@ func (c *Compiler) super_(_ bool) error {
 func syntheticToken(lexeme string, line int) token.Token {
 	return token.NewToken(token.IDENTIFIER, lexeme, nil, line)
 }
+
+func (c *Compiler) arrayLiteral(_ bool) error {
+	count := 0
+	if !c.check(token.RIGHT_BRACKET) {
+		for {
+			if err := c.expression(); err != nil {
+				return err
+			}
+			if count >= chunk.MaxConstants-1 {
+				return NewCompileError(c.previous(), "Too many elements in array literal.")
+			}
+			count++
+			if !c.match(token.COMMA) {
+				break
+			}
+		}
+	}
+	if err := c.consume(token.RIGHT_BRACKET, "Expected ']' after array elements."); err != nil {
+		return err
+	}
+	c.emitOp(chunk.OP_ARRAY)
+	c.chunk.WriteShort(count, c.currentLine())
+	return nil
+}
+
+func (c *Compiler) indexAccess(canAssign bool) error {
+	if err := c.expression(); err != nil {
+		return err
+	}
+	if err := c.consume(token.RIGHT_BRACKET, "Expected ']' after index."); err != nil {
+		return err
+	}
+	if canAssign && c.match(token.EQUAL) {
+		if err := c.expression(); err != nil {
+			return err
+		}
+		c.emitOp(chunk.OP_SET_INDEX)
+	} else {
+		c.emitOp(chunk.OP_GET_INDEX)
+	}
+	return nil
+}

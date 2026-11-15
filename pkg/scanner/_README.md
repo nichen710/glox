@@ -24,4 +24,5 @@ Para las pruebas se trataron de probar los casos de interes mediante test suites
 - Numeros
 - Palabras clave vs identificadores
 - Declaraciones completas
+- Tokens de POO (`class`, `super`, `this`, `.`) y arrays (`[`, `]`)
 - Errores de escaneo

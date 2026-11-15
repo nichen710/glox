@@ -177,6 +177,26 @@ func (s *BindingStep) resolveExpression(expr expression.Expression) error {
 		return s.resolveExpression(e.Right)
 	case expression.Get:
 		return s.resolveExpression(e.Object)
+	case expression.Array:
+		for _, el := range e.Elements {
+			if err := s.resolveExpression(el); err != nil {
+				return err
+			}
+		}
+		return nil
+	case expression.IndexGet:
+		if err := s.resolveExpression(e.Object); err != nil {
+			return err
+		}
+		return s.resolveExpression(e.Index)
+	case expression.IndexSet:
+		if err := s.resolveExpression(e.Value); err != nil {
+			return err
+		}
+		if err := s.resolveExpression(e.Object); err != nil {
+			return err
+		}
+		return s.resolveExpression(e.Index)
 	case expression.Set:
 		if err := s.resolveExpression(e.Value); err != nil {
 			return err

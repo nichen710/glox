@@ -205,6 +205,21 @@ func TestScanOOPTokens(t *testing.T) {
 	assertTokenTypes(t, tokens, expected)
 }
 
+func TestScanArrayTokens(t *testing.T) {
+	input := "var a = [1, 2]; a[0] = 3;"
+	tokens, err := NewScanner(input).Scan()
+	if err != nil {
+		t.Fatalf("unexpected scan error: %v", err)
+	}
+	expected := []token.TokenType{
+		token.VAR, token.IDENTIFIER, token.EQUAL,
+		token.LEFT_BRACKET, token.NUMBER, token.COMMA, token.NUMBER, token.RIGHT_BRACKET, token.SEMICOLON,
+		token.IDENTIFIER, token.LEFT_BRACKET, token.NUMBER, token.RIGHT_BRACKET, token.EQUAL, token.NUMBER, token.SEMICOLON,
+		token.EOF,
+	}
+	assertTokenTypes(t, tokens, expected)
+}
+
 func assertTokenTypes(t *testing.T, actual []token.Token, expected []token.TokenType) {
 	t.Helper()
 	if len(actual) != len(expected) {

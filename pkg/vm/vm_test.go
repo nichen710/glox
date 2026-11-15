@@ -696,3 +696,94 @@ func TestVM_OOPRuntimeErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestVM_Arrays(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"literal, indexing, assignment, and nested arrays",
+			`var a = [10, "hi", true];
+			print a;
+			print a[1];
+			a[1] = 20;
+			print a[0] + a[1];
+			var m = [[1, 2], [3, 4]];
+			print m[1][0];`,
+			"[10, hi, true]\nhi\n30\n3\n",
+		},
+		{
+			"len, push, pop, insert, remove",
+			`var arr = [];
+			print len(arr);
+			print len("glox");
+			print push(arr, "a");
+			print push(arr, "c");
+			print insert(arr, 1, "b");
+			print arr;
+			print remove(arr, 1);
+			print arr;
+			print pop(arr);
+			print arr;`,
+			"0\n4\n1\n2\n3\n[a, b, c]\nb\n[a, c]\nc\n[a]\n",
+		},
+		{
+			"arrays inside classes",
+			`class Stack {
+				init() { this.items = []; }
+				add(x) { push(this.items, x); }
+				take() { return pop(this.items); }
+			}
+			var s = Stack();
+			s.add(10);
+			s.add(20);
+			print s.take();
+			print len(s.items);`,
+			"20\n1\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_ArrayErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"index non-array", `var x = 123; print x[0];`, "Only arrays can be indexed."},
+		{"non-number index", `var a = [1]; print a["0"];`, "Array index must be a number."},
+		{"non-integer index", `var a = [1]; print a[0.5];`, "Array index must be an integer."},
+		{"out of bounds get", `var a = [1]; print a[1];`, "out of bounds"},
+		{"out of bounds set", `var a = [1]; a[-1] = 2;`, "out of bounds"},
+		{"pop empty", `pop([]);`, "cannot pop from empty array"},
+		{"remove out of bounds", `remove([1], 1);`, "out of bounds"},
+		{"insert out of bounds", `insert([1], 2, 9);`, "out of bounds"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runSource(t, tt.input)
+			var runtimeErr *RuntimeError
+			if !errors.As(err, &runtimeErr) {
+				t.Fatalf("expected RuntimeError, got %v", err)
+			}
+			if !strings.Contains(err.Error(), tt.expected) {
+				t.Errorf("got %q, want it to contain %q", err.Error(), tt.expected)
+			}
+		})
+	}
+}

@@ -82,6 +82,14 @@ func (p *Parser) assignment() expression.Expression {
 				Value:  value,
 			}
 		}
+		if idxGet, ok := expr.(expression.IndexGet); ok {
+			return expression.IndexSet{
+				Object:  idxGet.Object,
+				Bracket: idxGet.Bracket,
+				Index:   idxGet.Index,
+				Value:   value,
+			}
+		}
 
 		p._error = NewParseError(equals, "Invalid assignment target.")
 		return nil
@@ -151,6 +159,21 @@ func (p *Parser) call() expression.Expression {
 				Object: expr,
 				Name:   p.previous(),
 			}
+		} else if p.match(token.LEFT_BRACKET) {
+			bracket := p.previous()
+			index := p.expression()
+			if p._error != nil {
+				return nil
+			}
+			if !p.match(token.RIGHT_BRACKET) {
+				p._error = NewParseError(p.peek(), "Expected ']' after index. Got "+p.peek().Lexeme+".")
+				return nil
+			}
+			expr = expression.IndexGet{
+				Object:  expr,
+				Bracket: bracket,
+				Index:   index,
+			}
 		} else {
 			break
 		}
@@ -215,6 +238,27 @@ func (p *Parser) primary() expression.Expression {
 			return nil
 		}
 		return expression.Grouping{Expression: expr}
+	}
+
+	if p.match(token.LEFT_BRACKET) {
+		var elements []expression.Expression
+		if !p.check(token.RIGHT_BRACKET) {
+			for {
+				el := p.expression()
+				if p._error != nil {
+					return nil
+				}
+				elements = append(elements, el)
+				if !p.match(token.COMMA) {
+					break
+				}
+			}
+		}
+		if !p.match(token.RIGHT_BRACKET) {
+			p._error = NewParseError(p.peek(), "Expected ']' after array elements. Got "+p.peek().Lexeme+".")
+			return nil
+		}
+		return expression.Array{Elements: elements}
 	}
 
 	if p.match(token.SUPER) {

@@ -16,6 +16,7 @@ const (
 	KindClass
 	KindInstance
 	KindBoundMethod
+	KindArray
 )
 
 type (
@@ -32,6 +33,7 @@ type (
 		Class *Class
 		Inst  *Instance
 		Bound *BoundMethod
+		Arr   *Array
 	}
 )
 
@@ -73,6 +75,10 @@ func FromInstance(i *Instance) Value {
 
 func FromBoundMethod(b *BoundMethod) Value {
 	return Value{Kind: KindBoundMethod, Bound: b}
+}
+
+func FromArray(a *Array) Value {
+	return Value{Kind: KindArray, Arr: a}
 }
 
 func FromAny(v any) Value {
@@ -142,6 +148,8 @@ func (v Value) Equals(other Value) bool {
 		return v.Inst == other.Inst
 	case KindBoundMethod:
 		return v.Bound == other.Bound
+	case KindArray:
+		return v.Arr == other.Arr
 	default:
 		return false
 	}
@@ -172,6 +180,8 @@ func (v Value) String() string {
 		return v.Inst.String()
 	case KindBoundMethod:
 		return v.Bound.String()
+	case KindArray:
+		return v.Arr.String()
 	default:
 		return ""
 	}

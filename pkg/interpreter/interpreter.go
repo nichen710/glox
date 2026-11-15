@@ -281,6 +281,57 @@ func (i *Interpreter) Evaluate(expr expression.Expression) (any, error) {
 		return val, nil
 	case expression.This:
 		return i.lookUpVariable(e.ID, e.Keyword)
+	case expression.Array:
+		elems := make([]any, 0, len(e.Elements))
+		for _, elExpr := range e.Elements {
+			val, err := i.Evaluate(elExpr)
+			if err != nil {
+				return nil, err
+			}
+			elems = append(elems, val)
+		}
+		return NewLoxArray(elems), nil
+	case expression.IndexGet:
+		obj, err := i.Evaluate(e.Object)
+		if err != nil {
+			return nil, err
+		}
+		arr, ok := obj.(*LoxArray)
+		if !ok {
+			return nil, NewRuntimeError(e.Bracket, "Only arrays can be indexed.")
+		}
+		idxVal, err := i.Evaluate(e.Index)
+		if err != nil {
+			return nil, err
+		}
+		idx, err := parseArrayIndex(idxVal, len(arr.Elements), false)
+		if err != nil {
+			return nil, NewRuntimeError(e.Bracket, err.Error())
+		}
+		return arr.Elements[idx], nil
+	case expression.IndexSet:
+		obj, err := i.Evaluate(e.Object)
+		if err != nil {
+			return nil, err
+		}
+		arr, ok := obj.(*LoxArray)
+		if !ok {
+			return nil, NewRuntimeError(e.Bracket, "Only arrays can be indexed.")
+		}
+		idxVal, err := i.Evaluate(e.Index)
+		if err != nil {
+			return nil, err
+		}
+		idx, err := parseArrayIndex(idxVal, len(arr.Elements), false)
+		if err != nil {
+			return nil, NewRuntimeError(e.Bracket, err.Error())
+		}
+		val, err := i.Evaluate(e.Value)
+		if err != nil {
+			return nil, err
+		}
+		arr.Elements[idx] = val
+		return val, nil
 	case expression.Super:
 		if i.bindings == nil {
 			return nil, NewRuntimeError(e.Keyword, "Super requires resolved bindings.")

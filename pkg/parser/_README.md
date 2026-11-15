@@ -22,3 +22,5 @@ Para las pruebas se trataron de probar los casos de interes mediante test suites
 - Tests de precedencia
 - Tests de errores
 - Sentencias
+- POO
+- Arrays

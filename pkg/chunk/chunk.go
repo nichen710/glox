@@ -97,6 +97,10 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 		index := c.ReadShort(offset + 1)
 		fmt.Fprintf(sb, "<%s>\n", formatConstant(c.Constants[index]))
 		return offset + 3
+	case OP_ARRAY:
+		count := c.ReadShort(offset + 1)
+		fmt.Fprintf(sb, "<%d>\n", count)
+		return offset + 3
 	case OP_GET_LOCAL, OP_SET_LOCAL:
 		slot := c.Code[offset+1]
 		fmt.Fprintf(sb, "<@%d>\n", slot)

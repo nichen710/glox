@@ -1177,6 +1177,16 @@ func stripExprID(expr expression.Expression) expression.Expression {
 		return expression.This{Keyword: e.Keyword}
 	case expression.Super:
 		return expression.Super{Keyword: e.Keyword, Method: e.Method}
+	case expression.Array:
+		elems := make([]expression.Expression, len(e.Elements))
+		for i, el := range e.Elements {
+			elems[i] = stripExprID(el)
+		}
+		return expression.Array{Elements: elems}
+	case expression.IndexGet:
+		return expression.IndexGet{Object: stripExprID(e.Object), Bracket: e.Bracket, Index: stripExprID(e.Index)}
+	case expression.IndexSet:
+		return expression.IndexSet{Object: stripExprID(e.Object), Bracket: e.Bracket, Index: stripExprID(e.Index), Value: stripExprID(e.Value)}
 	default:
 		return expr
 	}
@@ -1292,6 +1302,31 @@ func TestParser_OOP(t *testing.T) {
 			if err == nil {
 				t.Errorf("expected parse error for %q, got nil", src)
 			}
+		}
+	})
+}
+
+func TestParser_Arrays(t *testing.T) {
+	t.Run("array literal and indexing", func(t *testing.T) {
+		got := stripExprID(mustParse(t, "[1, 2, 3][0]"))
+		idxGet, ok := got.(expression.IndexGet)
+		if !ok {
+			t.Fatalf("expected expression.IndexGet, got %T", got)
+		}
+		arr, ok := idxGet.Object.(expression.Array)
+		if !ok || len(arr.Elements) != 3 {
+			t.Fatalf("expected Array of 3 elements, got %#v", idxGet.Object)
+		}
+	})
+
+	t.Run("array index assignment", func(t *testing.T) {
+		got := stripExprID(mustParse(t, "arr[1] = 99"))
+		idxSet, ok := got.(expression.IndexSet)
+		if !ok {
+			t.Fatalf("expected expression.IndexSet, got %T", got)
+		}
+		if _, ok := idxSet.Object.(expression.Variable); !ok {
+			t.Errorf("expected Variable target, got %T", idxSet.Object)
 		}
 	})
 }

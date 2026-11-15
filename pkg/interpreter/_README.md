@@ -9,6 +9,7 @@ El Interpreter tiene la responsabilidad de ejecutar las sentencias y evaluar las
 - Manejo de errores en runtime: en esta implementacion en vez de interrumpir la ejecucion levantando excepciones, retornamos errores tipados como valores para reportar con precision el token y la linea del fallo siguiendo el estandar de Go.
 - Control de retorno con señales: en esta implementacion en vez de lanzar excepciones para retornar de una funcion, propagamos una señal de retorno tipada que es capturada al invocar la llamada.
 - Salida configurable: en esta implementacion permitimos configurar el destino de salida del interprete, facilitando la verificacion y captura de salidas en las pruebas unitarias.
+- Soporte completo de POO y Arrays: implementa clases, instancias, propiedades, métodos enlazados, inicializadores, herencia, literales e indexación de arrays y nativas de arrays.
 
 ## Test
 
@@ -23,3 +24,5 @@ Para las pruebas se trataron de probar los casos de interes mediante test suites
 - Evaluacion de verdad (truthiness)
 - Manejo de errores en runtime (tipos incompatibles, division y modulo por cero)
 - Ejecucion de sentencias
+- POO completo (clases, instancias, propiedades, `this`, `init`, herencia, `super` y errores de runtime)
+- Arrays (literales, indexación, asignación y nativas `len`, `push`, `pop`, `insert`, `remove`) y sus errores de rango/tipo

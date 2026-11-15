@@ -814,3 +814,130 @@ func TestInterpreter_OOPRuntimeErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestInterpreter_Arrays(t *testing.T) {
+	tests := []struct {
+		name           string
+		source         string
+		expectedOutput string
+	}{
+		{
+			name: "literal, indexing, assignment, and nested arrays",
+			source: `
+var a = [10, "hi", true];
+print a;
+print a[1];
+a[1] = 20;
+print a[0] + a[1];
+var m = [[1, 2], [3, 4]];
+print m[1][0];
+`,
+			expectedOutput: "[10, hi, true]\nhi\n30\n3\n",
+		},
+		{
+			name: "len, push, pop, insert, remove",
+			source: `
+var arr = [];
+print len(arr);
+print len("glox");
+print push(arr, "a");
+print push(arr, "c");
+print insert(arr, 1, "b");
+print arr;
+print remove(arr, 1);
+print arr;
+print pop(arr);
+print arr;
+`,
+			expectedOutput: "0\n4\n1\n2\n3\n[a, b, c]\nb\n[a, c]\nc\n[a]\n",
+		},
+		{
+			name: "arrays inside classes",
+			source: `
+class Stack {
+	init() { this.items = []; }
+	add(x) { push(this.items, x); }
+	take() { return pop(this.items); }
+}
+var s = Stack();
+s.add(10);
+s.add(20);
+print s.take();
+print len(s.items);
+`,
+			expectedOutput: "20\n1\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens, err := scanner.NewScanner(tt.source).Scan()
+			if err != nil {
+				t.Fatalf("scan error: %v", err)
+			}
+			stmts, err := parser.NewParser(tokens).Parse()
+			if err != nil {
+				t.Fatalf("parse error: %v", err)
+			}
+			table := resolver.NewBindingTable()
+			rslvr := resolver.NewResolverBuilder().WithBinding(table).Build()
+			if err := rslvr.Resolve(stmts); err != nil {
+				t.Fatalf("resolver error: %v", err)
+			}
+			var buf bytes.Buffer
+			interp := NewInterpreter()
+			interp.SetWriter(&buf)
+			interp.SetBindings(table)
+			if _, err := interp.Interpret(stmts); err != nil {
+				t.Fatalf("interpret error: %v", err)
+			}
+			if buf.String() != tt.expectedOutput {
+				t.Errorf("got %q, want %q", buf.String(), tt.expectedOutput)
+			}
+		})
+	}
+}
+
+func TestInterpreter_ArrayErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		errContains string
+	}{
+		{"index non-array", `var x = 123; print x[0];`, "Only arrays can be indexed."},
+		{"non-number index", `var a = [1]; print a["0"];`, "Array index must be a number."},
+		{"non-integer index", `var a = [1]; print a[0.5];`, "Array index must be an integer."},
+		{"out of bounds get", `var a = [1]; print a[1];`, "out of bounds"},
+		{"out of bounds set", `var a = [1]; a[-1] = 2;`, "out of bounds"},
+		{"pop empty", `pop([]);`, "cannot pop from empty array"},
+		{"remove out of bounds", `remove([1], 1);`, "out of bounds"},
+		{"insert out of bounds", `insert([1], 2, 9);`, "out of bounds"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens, err := scanner.NewScanner(tt.source).Scan()
+			if err != nil {
+				t.Fatalf("scan error: %v", err)
+			}
+			stmts, err := parser.NewParser(tokens).Parse()
+			if err != nil {
+				t.Fatalf("parse error: %v", err)
+			}
+			table := resolver.NewBindingTable()
+			rslvr := resolver.NewResolverBuilder().WithBinding(table).Build()
+			if err := rslvr.Resolve(stmts); err != nil {
+				t.Fatalf("resolver error: %v", err)
+			}
+			interp := NewInterpreter()
+			interp.SetBindings(table)
+			_, err = interp.Interpret(stmts)
+			if err == nil {
+				t.Fatalf("expected runtime error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("got %q, want error containing %q", err.Error(), tt.errContains)
+			}
+		})
+	}
+}
