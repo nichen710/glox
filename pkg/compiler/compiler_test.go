@@ -388,6 +388,11 @@ func TestCompiler_FunctionErrors(t *testing.T) {
 		{"missing paren", "fun f {}", "Expected '(' after function name."},
 		{"missing brace", "fun f() return 1;", "Expected '{' before function body."},
 		{"missing return semicolon", "fun f() { return 1 }", "Expected ';' after return value."},
+		{"this outside class", "print this;", "Can't use 'this' outside of a class."},
+		{"super outside class", "print super.m();", "Can't use 'super' outside of a class."},
+		{"super without superclass", "class A { m() { super.m(); } }", "Can't use 'super' in a class with no superclass."},
+		{"self inheritance", "class A < A {}", "A class can't inherit from itself."},
+		{"return value in init", "class A { init() { return 1; } }", "Can't return a value from an initializer."},
 	}
 
 	for _, tt := range tests {

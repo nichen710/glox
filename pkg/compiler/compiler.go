@@ -8,10 +8,17 @@ import (
 const (
 	FnScript FunctionType = iota
 	FnFunction
+	FnMethod
+	FnInitializer
 )
 
 type (
 	FunctionType uint8
+
+	ClassContext struct {
+		enclosing     *ClassContext
+		hasSuperclass bool
+	}
 
 	Compiler struct {
 		enclosing    *Compiler
@@ -20,6 +27,7 @@ type (
 		chunk        *chunk.Chunk
 		context      *CompilerContext
 		fnType       FunctionType
+		currentClass *ClassContext
 		lastOpOffset int
 		statements   []StatementCompiler
 	}
@@ -47,13 +55,19 @@ func NewCompiler(tokens []token.Token) *Compiler {
 }
 
 func (c *Compiler) newChild(fnType FunctionType) *Compiler {
+	ctx := NewCompilerContext()
+	if fnType == FnMethod || fnType == FnInitializer {
+		ctx.declare("this")
+		ctx.markInitialized()
+	}
 	return &Compiler{
 		enclosing:    c,
 		tokens:       c.tokens,
 		current:      c.current,
 		chunk:        chunk.NewChunk(),
-		context:      NewCompilerContext(),
+		context:      ctx,
 		fnType:       fnType,
+		currentClass: c.currentClass,
 		lastOpOffset: -1,
 		statements:   c.statements,
 	}
@@ -71,6 +85,9 @@ func (c *Compiler) Compile() (*chunk.Chunk, error) {
 
 // Statements: stack effect 0
 func (c *Compiler) declaration() error {
+	if c.check(token.CLASS) {
+		return (&ClassCompiler{}).Compile(c)
+	}
 	if c.check(token.FUN) {
 		return (&FunctionCompiler{}).Compile(c)
 	}

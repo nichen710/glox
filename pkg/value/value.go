@@ -13,19 +13,25 @@ const (
 	KindFunction
 	KindClosure
 	KindNative
+	KindClass
+	KindInstance
+	KindBoundMethod
 )
 
 type (
 	Kind uint8
 
 	Value struct {
-		Kind Kind
-		Bool bool
-		Num  float64
-		Str  string
-		Fn   *Function
-		Clos *Closure
-		Nat  *Native
+		Kind  Kind
+		Bool  bool
+		Num   float64
+		Str   string
+		Fn    *Function
+		Clos  *Closure
+		Nat   *Native
+		Class *Class
+		Inst  *Instance
+		Bound *BoundMethod
 	}
 )
 
@@ -55,6 +61,18 @@ func FromClosure(c *Closure) Value {
 
 func FromNative(nat *Native) Value {
 	return Value{Kind: KindNative, Nat: nat}
+}
+
+func FromClass(c *Class) Value {
+	return Value{Kind: KindClass, Class: c}
+}
+
+func FromInstance(i *Instance) Value {
+	return Value{Kind: KindInstance, Inst: i}
+}
+
+func FromBoundMethod(b *BoundMethod) Value {
+	return Value{Kind: KindBoundMethod, Bound: b}
 }
 
 func FromAny(v any) Value {
@@ -118,6 +136,12 @@ func (v Value) Equals(other Value) bool {
 		return v.Clos == other.Clos
 	case KindNative:
 		return v.Nat == other.Nat
+	case KindClass:
+		return v.Class == other.Class
+	case KindInstance:
+		return v.Inst == other.Inst
+	case KindBoundMethod:
+		return v.Bound == other.Bound
 	default:
 		return false
 	}
@@ -142,6 +166,12 @@ func (v Value) String() string {
 		return v.Clos.String()
 	case KindNative:
 		return v.Nat.String()
+	case KindClass:
+		return v.Class.String()
+	case KindInstance:
+		return v.Inst.String()
+	case KindBoundMethod:
+		return v.Bound.String()
 	default:
 		return ""
 	}

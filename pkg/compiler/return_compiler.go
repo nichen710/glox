@@ -18,8 +18,17 @@ func (rc *ReturnCompiler) Compile(c *Compiler) error {
 	}
 
 	if c.match(token.SEMICOLON) {
+		if c.fnType == FnInitializer {
+			c.emitOpByte(chunk.OP_GET_LOCAL, 0)
+			c.emitOp(chunk.OP_RETURN)
+			return nil
+		}
 		c.emitOps(chunk.OP_NIL, chunk.OP_RETURN)
 		return nil
+	}
+
+	if c.fnType == FnInitializer {
+		return NewCompileError(tok, "Can't return a value from an initializer.")
 	}
 
 	if err := c.expression(); err != nil {

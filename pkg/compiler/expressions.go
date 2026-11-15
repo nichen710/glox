@@ -136,7 +136,11 @@ func (c *Compiler) logicOr(_ bool) error {
 
 // Si viene un `=` es una asignacion, si no es una lectura de la variable
 func (c *Compiler) variable(canAssign bool) error {
-	getOp, setOp, operand, err := c.resolveVariable(c.previous())
+	return c.namedVariable(c.previous(), canAssign)
+}
+
+func (c *Compiler) namedVariable(name token.Token, canAssign bool) error {
+	getOp, setOp, operand, err := c.resolveVariable(name)
 	if err != nil {
 		return err
 	}
@@ -174,14 +178,23 @@ func (c *Compiler) resolveVariable(name token.Token) (chunk.OpCode, chunk.OpCode
 }
 
 func (c *Compiler) call(_ bool) error {
+	argCount, err := c.argumentList()
+	if err != nil {
+		return err
+	}
+	c.emitOpByte(chunk.OP_CALL, argCount)
+	return nil
+}
+
+func (c *Compiler) argumentList() (byte, error) {
 	argCount := 0
 	if !c.check(token.RIGHT_PAREN) {
 		for {
 			if err := c.expression(); err != nil {
-				return err
+				return 0, err
 			}
 			if argCount >= MaxArgs {
-				return NewCompileError(c.previous(), "Can't have more than 255 arguments.")
+				return 0, NewCompileError(c.previous(), "Can't have more than 255 arguments.")
 			}
 			argCount++
 			if !c.match(token.COMMA) {
@@ -190,8 +203,89 @@ func (c *Compiler) call(_ bool) error {
 		}
 	}
 	if err := c.consume(token.RIGHT_PAREN, "Expected ')' after arguments."); err != nil {
+		return 0, err
+	}
+	return byte(argCount), nil
+}
+
+func (c *Compiler) dot(canAssign bool) error {
+	if err := c.consume(token.IDENTIFIER, "Expected property name after '.'."); err != nil {
 		return err
 	}
-	c.emitOpByte(chunk.OP_CALL, byte(argCount))
+	nameIdx, err := c.identifierConstant(c.previous())
+	if err != nil {
+		return err
+	}
+
+	if canAssign && c.match(token.EQUAL) {
+		if err := c.expression(); err != nil {
+			return err
+		}
+		c.emitOpByte(chunk.OP_SET_PROPERTY, nameIdx)
+	} else if c.match(token.LEFT_PAREN) {
+		argCount, err := c.argumentList()
+		if err != nil {
+			return err
+		}
+		c.emitOp(chunk.OP_INVOKE)
+		c.chunk.Write(nameIdx, c.currentLine())
+		c.chunk.Write(argCount, c.currentLine())
+	} else {
+		c.emitOpByte(chunk.OP_GET_PROPERTY, nameIdx)
+	}
 	return nil
+}
+
+func (c *Compiler) this_(_ bool) error {
+	if c.currentClass == nil {
+		return NewCompileError(c.previous(), "Can't use 'this' outside of a class.")
+	}
+	return c.variable(false)
+}
+
+func (c *Compiler) super_(_ bool) error {
+	kw := c.previous()
+	if c.currentClass == nil {
+		return NewCompileError(kw, "Can't use 'super' outside of a class.")
+	}
+	if !c.currentClass.hasSuperclass {
+		return NewCompileError(kw, "Can't use 'super' in a class with no superclass.")
+	}
+
+	if err := c.consume(token.DOT, "Expected '.' after 'super'."); err != nil {
+		return err
+	}
+	if err := c.consume(token.IDENTIFIER, "Expected superclass method name."); err != nil {
+		return err
+	}
+	nameIdx, err := c.identifierConstant(c.previous())
+	if err != nil {
+		return err
+	}
+
+	if err := c.namedVariable(syntheticToken("this", kw.Line), false); err != nil {
+		return err
+	}
+	if c.match(token.LEFT_PAREN) {
+		argCount, err := c.argumentList()
+		if err != nil {
+			return err
+		}
+		if err := c.namedVariable(syntheticToken("super", kw.Line), false); err != nil {
+			return err
+		}
+		c.emitOp(chunk.OP_SUPER_INVOKE)
+		c.chunk.Write(nameIdx, c.currentLine())
+		c.chunk.Write(argCount, c.currentLine())
+	} else {
+		if err := c.namedVariable(syntheticToken("super", kw.Line), false); err != nil {
+			return err
+		}
+		c.emitOpByte(chunk.OP_GET_SUPER, nameIdx)
+	}
+	return nil
+}
+
+func syntheticToken(lexeme string, line int) token.Token {
+	return token.NewToken(token.IDENTIFIER, lexeme, nil, line)
 }

@@ -39,7 +39,7 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 	vm.stack = vm.stack[:0]
 	vm.frames = vm.frames[:0]
 	vm.openUpvalues = nil
-	vm.pushFrame(&value.Closure{Fn: &value.Function{Chunk: c}}, 0)
+	vm.pushFrame(&value.Closure{Fn: &value.Function{Chunk: c}}, 0, 0)
 
 	for vm.frame.ip < len(vm.frame.chunk.Code) {
 		offset := vm.frame.ip
@@ -150,6 +150,30 @@ func (vm *VM) Run(c *chunk.Chunk) error {
 		case chunk.OP_CLOSE_UPVALUE:
 			vm.closeUpvalues(len(vm.stack) - 1)
 			_, err = vm.pop(offset)
+		case chunk.OP_CLASS:
+			vm.push(value.FromClass(value.NewClass(vm.readName())))
+		case chunk.OP_METHOD:
+			err = vm.defineMethod(offset, vm.readName())
+		case chunk.OP_GET_PROPERTY:
+			err = vm.getProperty(offset, vm.readName())
+		case chunk.OP_SET_PROPERTY:
+			err = vm.setProperty(offset, vm.readName())
+		case chunk.OP_INVOKE:
+			name := vm.readName()
+			argCount := int(vm.readByte())
+			err = vm.invoke(offset, name, argCount)
+		case chunk.OP_INHERIT:
+			err = vm.inherit(offset)
+		case chunk.OP_GET_SUPER:
+			name := vm.readName()
+			var superVal value.Value
+			if superVal, err = vm.pop(offset); err == nil {
+				err = vm.bindMethod(offset, superVal.Class, name)
+			}
+		case chunk.OP_SUPER_INVOKE:
+			name := vm.readName()
+			argCount := int(vm.readByte())
+			err = vm.superInvoke(offset, name, argCount)
 		case chunk.OP_RETURN:
 			var done bool
 			if done, err = vm.returnFromFrame(offset); err == nil && done {

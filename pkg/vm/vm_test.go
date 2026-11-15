@@ -366,7 +366,7 @@ func TestVM_FunctionErrors(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"call non-function", "var x = 1; x();", "Can only call functions."},
+		{"call non-function", "var x = 1; x();", "Can only call functions and classes."},
 		{"wrong arity", "fun f(a, b) {} f(1);", "Expected 2 arguments but got 1."},
 		{"native wrong arity", "clock(1);", "Expected 0 arguments but got 1."},
 		{"stack overflow", "fun f() { f(); } f();", "Stack overflow."},
@@ -537,6 +537,161 @@ func TestVM_Natives(t *testing.T) {
 			}
 			if got != tt.expected {
 				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_OOP(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"class instantiation and properties",
+			`class Bagel {}
+			var bagel = Bagel();
+			print Bagel;
+			print bagel;
+			bagel.flavor = "sesame";
+			print bagel.flavor;`,
+			"Bagel\nBagel instance\nsesame\n",
+		},
+		{
+			"methods, this, and init",
+			`class Counter {
+				init(start) {
+					this.count = start;
+				}
+				inc() {
+					this.count = this.count + 1;
+					return this.count;
+				}
+			}
+			var c = Counter(10);
+			print c.inc();
+			print c.inc();`,
+			"11\n12\n",
+		},
+		{
+			"bound method and field function call",
+			`class Person {
+				sayName() {
+					print this.name;
+				}
+			}
+			var jane = Person();
+			jane.name = "Jane";
+			var m = jane.sayName;
+			m();
+			fun greet(who) { print "hi " + who; }
+			jane.greet = greet;
+			jane.greet("world");`,
+			"Jane\nhi world\n",
+		},
+		{
+			"early return in init returns this",
+			`class Foo {
+				init(x) {
+					this.x = x;
+					return;
+				}
+			}
+			var f = Foo(42);
+			print f.x;
+			print f.init(99).x;`,
+			"42\n99\n",
+		},
+		{
+			"inheritance, override, and super",
+			`class A {
+				method() {
+					print "A method";
+				}
+			}
+			class B < A {
+				method() {
+					print "B method";
+				}
+				test() {
+					super.method();
+				}
+			}
+			class C < B {}
+			C().test();`,
+			"A method\n",
+		},
+		{
+			"super invoke and bound super method",
+			`class Animal {
+				init(name) {
+					this.name = name;
+				}
+				speak() {
+					return this.name + " speaks";
+				}
+			}
+			class Dog < Animal {
+				init(name, breed) {
+					super.init(name);
+					this.breed = breed;
+				}
+				speak() {
+					var s = super.speak;
+					return s() + " loudly (" + this.breed + ")";
+				}
+			}
+			print Dog("Rex", "Labrador").speak();`,
+			"Rex speaks loudly (Labrador)\n",
+		},
+		{
+			"local classes inside blocks",
+			`{
+				class Base { val() { return 10; } }
+				class Sub < Base { val() { return super.val() + 5; } }
+				print Sub().val();
+			}`,
+			"15\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestVM_OOPRuntimeErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"superclass not a class", "var NotAClass = 123; class Sub < NotAClass {}", "Superclass must be a class."},
+		{"get property on non-instance", `var x = "hi"; print x.prop;`, "Only instances have properties."},
+		{"set field on non-instance", `var x = 123; x.prop = 1;`, "Only instances have fields."},
+		{"invoke on non-instance", `var x = 123; x.m();`, "Only instances have methods."},
+		{"undefined property", `class Foo {} var f = Foo(); print f.bar;`, "Undefined property 'bar'."},
+		{"init arity mismatch", `class Foo { init(a) {} } Foo();`, "Expected 1 arguments but got 0."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runSource(t, tt.input)
+			var runtimeErr *RuntimeError
+			if !errors.As(err, &runtimeErr) {
+				t.Fatalf("expected RuntimeError, got %v", err)
+			}
+			if !strings.Contains(err.Error(), tt.expected) {
+				t.Errorf("got %q, want it to contain %q", err.Error(), tt.expected)
 			}
 		})
 	}

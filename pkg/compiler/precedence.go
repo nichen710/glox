@@ -38,6 +38,7 @@ func init() {
 		// TokenType: {prefix, infix, prefixPrecedence, infixPrecedence}
 		token.LEFT_PAREN:    {(*Compiler).grouping, (*Compiler).call, PREC_NONE, PREC_CALL},
 		token.RIGHT_PAREN:   {nil, nil, PREC_NONE, PREC_NONE},
+		token.DOT:           {nil, (*Compiler).dot, PREC_NONE, PREC_CALL},
 		token.NUMBER:        {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
 		token.STRING:        {(*Compiler).value, nil, PREC_NONE, PREC_NONE},
 		token.NIL:           {(*Compiler).literal, nil, PREC_NONE, PREC_NONE},
@@ -57,6 +58,8 @@ func init() {
 		token.LESS_EQUAL:    {nil, (*Compiler).binary, PREC_NONE, PREC_COMPARISON},
 		token.AND:           {nil, (*Compiler).logicAnd, PREC_NONE, PREC_AND},
 		token.OR:            {nil, (*Compiler).logicOr, PREC_NONE, PREC_OR},
+		token.THIS:          {(*Compiler).this_, nil, PREC_NONE, PREC_NONE},
+		token.SUPER:         {(*Compiler).super_, nil, PREC_NONE, PREC_NONE},
 		token.IDENTIFIER:    {(*Compiler).variable, nil, PREC_NONE, PREC_NONE},
 		token.EOF:           {nil, nil, PREC_NONE, PREC_NONE},
 	}

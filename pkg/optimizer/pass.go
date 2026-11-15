@@ -17,9 +17,15 @@ func instructionSize(c *chunk.Chunk, offset int) int {
 		chunk.OP_GET_UPVALUE,
 		chunk.OP_SET_UPVALUE,
 		chunk.OP_CALL,
-		chunk.OP_TAIL_CALL:
+		chunk.OP_TAIL_CALL,
+		chunk.OP_CLASS,
+		chunk.OP_GET_PROPERTY,
+		chunk.OP_SET_PROPERTY,
+		chunk.OP_METHOD,
+		chunk.OP_GET_SUPER:
 		return 2
-	case chunk.OP_JUMP, chunk.OP_JUMP_IF_FALSE, chunk.OP_LOOP, chunk.OP_CONSTANT_LONG:
+	case chunk.OP_JUMP, chunk.OP_JUMP_IF_FALSE, chunk.OP_LOOP, chunk.OP_CONSTANT_LONG,
+		chunk.OP_INVOKE, chunk.OP_SUPER_INVOKE:
 		return 3
 	case chunk.OP_CLOSURE:
 		fnVal := c.Constants[c.Code[offset+1]]

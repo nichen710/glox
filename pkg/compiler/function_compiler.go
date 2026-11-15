@@ -37,11 +37,22 @@ func (fc *FunctionCompiler) Compile(c *Compiler) error {
 		c.context.markInitialized()
 	}
 
-	fn, upvalues, err := fc.compileFunction(c, name.Lexeme)
+	fn, upvalues, err := fc.compileFunction(c, name.Lexeme, FnFunction)
 	if err != nil {
 		return err
 	}
 
+	if err := c.emitClosure(name, fn, upvalues); err != nil {
+		return err
+	}
+
+	if c.context.isGlobalScope() {
+		c.emitOpByte(chunk.OP_DEFINE_GLOBAL, globalIndex)
+	}
+	return nil
+}
+
+func (c *Compiler) emitClosure(name token.Token, fn *value.Function, upvalues []upvalue) error {
 	fnIndex, err := c.makeByteConstant(name, value.FromFunction(fn))
 	if err != nil {
 		return err
@@ -55,15 +66,11 @@ func (fc *FunctionCompiler) Compile(c *Compiler) error {
 		c.chunk.Write(isLocalByte, c.currentLine())
 		c.chunk.Write(uv.index, c.currentLine())
 	}
-
-	if c.context.isGlobalScope() {
-		c.emitOpByte(chunk.OP_DEFINE_GLOBAL, globalIndex)
-	}
 	return nil
 }
 
-func (fc *FunctionCompiler) compileFunction(c *Compiler, name string) (*value.Function, []upvalue, error) {
-	child := c.newChild(FnFunction)
+func (fc *FunctionCompiler) compileFunction(c *Compiler, name string, fnType FunctionType) (*value.Function, []upvalue, error) {
+	child := c.newChild(fnType)
 	child.context.beginScope()
 
 	if err := child.consume(token.LEFT_PAREN, "Expected '(' after function name."); err != nil {
@@ -101,7 +108,12 @@ func (fc *FunctionCompiler) compileFunction(c *Compiler, name string) (*value.Fu
 		return nil, nil, err
 	}
 
-	child.emitOps(chunk.OP_NIL, chunk.OP_RETURN)
+	if fnType == FnInitializer {
+		child.emitOpByte(chunk.OP_GET_LOCAL, 0)
+		child.emitOp(chunk.OP_RETURN)
+	} else {
+		child.emitOps(chunk.OP_NIL, chunk.OP_RETURN)
+	}
 	return &value.Function{
 		Name:         name,
 		Arity:        arity,
