@@ -136,23 +136,9 @@ func (c *Compiler) logicOr(_ bool) error {
 
 // Si viene un `=` es una asignacion, si no es una lectura de la variable
 func (c *Compiler) variable(canAssign bool) error {
-	name := c.previous()
-	getOp, setOp := chunk.OP_GET_GLOBAL, chunk.OP_SET_GLOBAL
-
-	var operand byte
-	slot, local := c.context.resolve(name.Lexeme)
-	if local != nil {
-		if !local.initialized {
-			return NewCompileError(name, "Can't read local variable in its own initializer.")
-		}
-		getOp, setOp = chunk.OP_GET_LOCAL, chunk.OP_SET_LOCAL
-		operand = byte(slot)
-	} else {
-		index, err := c.identifierConstant(name)
-		if err != nil {
-			return err
-		}
-		operand = index
+	getOp, setOp, operand, err := c.resolveVariable(c.previous())
+	if err != nil {
+		return err
 	}
 
 	if canAssign && c.match(token.EQUAL) {
@@ -164,6 +150,27 @@ func (c *Compiler) variable(canAssign bool) error {
 		c.emitOpByte(getOp, operand)
 	}
 	return nil
+}
+
+func (c *Compiler) resolveVariable(name token.Token) (chunk.OpCode, chunk.OpCode, byte, error) {
+	if slot, local := c.context.resolve(name.Lexeme); local != nil {
+		if !local.initialized {
+			return 0, 0, 0, NewCompileError(name, "Can't read local variable in its own initializer.")
+		}
+		return chunk.OP_GET_LOCAL, chunk.OP_SET_LOCAL, byte(slot), nil
+	}
+
+	if upIdx, found, err := c.resolveUpvalue(name); err != nil {
+		return 0, 0, 0, err
+	} else if found {
+		return chunk.OP_GET_UPVALUE, chunk.OP_SET_UPVALUE, byte(upIdx), nil
+	}
+
+	index, err := c.identifierConstant(name)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return chunk.OP_GET_GLOBAL, chunk.OP_SET_GLOBAL, index, nil
 }
 
 func (c *Compiler) call(_ bool) error {

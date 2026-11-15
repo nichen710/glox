@@ -15,6 +15,7 @@ type (
 	FunctionType uint8
 
 	Compiler struct {
+		enclosing  *Compiler
 		tokens     []token.Token
 		current    *int
 		chunk      *chunk.Chunk
@@ -46,6 +47,7 @@ func NewCompiler(tokens []token.Token) *Compiler {
 
 func (c *Compiler) newChild(fnType FunctionType) *Compiler {
 	return &Compiler{
+		enclosing:  c,
 		tokens:     c.tokens,
 		current:    c.current,
 		chunk:      chunk.NewChunk(),
@@ -116,9 +118,38 @@ func (c *Compiler) declareLocal(name token.Token) error {
 }
 
 func (c *Compiler) endScope() {
-	for range c.context.endScope() {
-		c.emitOp(chunk.OP_POP)
+	for _, captured := range c.context.endScope() {
+		if captured {
+			c.emitOp(chunk.OP_CLOSE_UPVALUE)
+		} else {
+			c.emitOp(chunk.OP_POP)
+		}
 	}
+}
+
+func (c *Compiler) resolveUpvalue(name token.Token) (int, bool, error) {
+	if c.enclosing == nil {
+		return -1, false, nil
+	}
+
+	if slot, loc := c.enclosing.context.resolve(name.Lexeme); loc != nil {
+		loc.captured = true
+		idx, ok := c.context.addUpvalue(byte(slot), true)
+		if !ok {
+			return 0, false, NewCompileError(name, "Too many closure variables in function.")
+		}
+		return idx, true, nil
+	}
+
+	upIdx, found, err := c.enclosing.resolveUpvalue(name)
+	if err != nil || !found {
+		return -1, false, err
+	}
+	idx, ok := c.context.addUpvalue(byte(upIdx), false)
+	if !ok {
+		return 0, false, NewCompileError(name, "Too many closure variables in function.")
+	}
+	return idx, true, nil
 }
 
 func (c *Compiler) consume(tokenType token.TokenType, message string) error {

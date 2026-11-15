@@ -339,9 +339,11 @@ func TestCompiler_Functions(t *testing.T) {
 		input    string
 		expected []string
 	}{
-		{"declaration", "fun f() {}", []string{"OP_CONSTANT<<fn f>>", "OP_DEFINE_GLOBAL<'f'>", "OP_RETURN"}},
+		{"declaration", "fun f() {}", []string{"OP_CLOSURE<<fn f>>", "OP_DEFINE_GLOBAL<'f'>", "OP_RETURN"}},
 		{"call", "f(1, 2);", []string{"OP_GET_GLOBAL<'f'>", "OP_CONSTANT<1>", "OP_CONSTANT<2>", "OP_CALL<2>", "OP_POP", "OP_RETURN"}},
-		{"local function", "{ fun f() {} f(); }", []string{"OP_CONSTANT<<fn f>>", "OP_GET_LOCAL<@0>", "OP_CALL<0>", "OP_POP", "OP_POP", "OP_RETURN"}},
+		{"local function", "{ fun f() {} f(); }", []string{"OP_CLOSURE<<fn f>>", "OP_GET_LOCAL<@0>", "OP_CALL<0>", "OP_POP", "OP_POP", "OP_RETURN"}},
+		{"closure captures local", "fun outer() { var x = 1; fun inner() { return x; } return inner; }", []string{"OP_CLOSURE<<fn outer>>", "OP_DEFINE_GLOBAL<'outer'>", "OP_RETURN"}},
+		{"block closes captured local", "{ var x = 1; fun f() { return x; } }", []string{"OP_CONSTANT<1>", "OP_CLOSURE<<fn f>>", "local 0", "OP_POP", "OP_CLOSE_UPVALUE", "OP_RETURN"}},
 	}
 
 	for _, tt := range tests {

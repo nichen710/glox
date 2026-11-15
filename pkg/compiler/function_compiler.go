@@ -37,7 +37,7 @@ func (fc *FunctionCompiler) Compile(c *Compiler) error {
 		c.context.markInitialized()
 	}
 
-	fn, err := fc.compileFunction(c, name.Lexeme)
+	fn, upvalues, err := fc.compileFunction(c, name.Lexeme)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,15 @@ func (fc *FunctionCompiler) Compile(c *Compiler) error {
 	if err != nil {
 		return err
 	}
-	c.emitOpByte(chunk.OP_CONSTANT, fnIndex)
+	c.emitOpByte(chunk.OP_CLOSURE, fnIndex)
+	for _, uv := range upvalues {
+		isLocalByte := byte(0)
+		if uv.isLocal {
+			isLocalByte = 1
+		}
+		c.chunk.Write(isLocalByte, c.currentLine())
+		c.chunk.Write(uv.index, c.currentLine())
+	}
 
 	if c.context.isGlobalScope() {
 		c.emitOpByte(chunk.OP_DEFINE_GLOBAL, globalIndex)
@@ -54,25 +62,25 @@ func (fc *FunctionCompiler) Compile(c *Compiler) error {
 	return nil
 }
 
-func (fc *FunctionCompiler) compileFunction(c *Compiler, name string) (*value.Function, error) {
+func (fc *FunctionCompiler) compileFunction(c *Compiler, name string) (*value.Function, []upvalue, error) {
 	child := c.newChild(FnFunction)
 	child.context.beginScope()
 
 	if err := child.consume(token.LEFT_PAREN, "Expected '(' after function name."); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	arity := 0
 	if !child.check(token.RIGHT_PAREN) {
 		for {
 			if arity >= MaxArgs {
-				return nil, NewCompileError(child.peek(), "Can't have more than 255 parameters.")
+				return nil, nil, NewCompileError(child.peek(), "Can't have more than 255 parameters.")
 			}
 			if err := child.consume(token.IDENTIFIER, "Expected parameter name."); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if err := child.declareLocal(child.previous()); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			child.context.markInitialized()
 			arity++
@@ -84,20 +92,21 @@ func (fc *FunctionCompiler) compileFunction(c *Compiler, name string) (*value.Fu
 	}
 
 	if err := child.consume(token.RIGHT_PAREN, "Expected ')' after parameters."); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := child.consume(token.LEFT_BRACE, "Expected '{' before function body."); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := child.block(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	child.emitOps(chunk.OP_NIL, chunk.OP_RETURN)
 	return &value.Function{
-		Name:  name,
-		Arity: arity,
-		Chunk: child.chunk,
-	}, nil
+		Name:         name,
+		Arity:        arity,
+		UpvalueCount: len(child.context.upvalues),
+		Chunk:        child.chunk,
+	}, child.context.upvalues, nil
 }
 

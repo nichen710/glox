@@ -6,9 +6,21 @@ type (
 	NativeFn func(args []Value) (Value, error)
 
 	Function struct {
-		Name  string
-		Arity int
-		Chunk any
+		Name         string
+		Arity        int
+		UpvalueCount int
+		Chunk        any
+	}
+
+	Upvalue struct {
+		Slot   int
+		Closed Value
+		Next   *Upvalue
+	}
+
+	Closure struct {
+		Fn       *Function
+		Upvalues []*Upvalue
 	}
 
 	Native struct {
@@ -25,7 +37,10 @@ func (f *Function) String() string {
 	return fmt.Sprintf("<fn %s>", f.Name)
 }
 
+func (c *Closure) String() string {
+	return c.Fn.String()
+}
+
 func (n *Native) String() string {
 	return "<native fn>"
 }
-

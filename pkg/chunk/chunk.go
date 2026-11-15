@@ -88,6 +88,27 @@ func (c *Chunk) disassembleInstruction(sb *strings.Builder, offset int) int {
 		argCount := c.Code[offset+1]
 		fmt.Fprintf(sb, "<%d>\n", argCount)
 		return offset + 2
+	case OP_GET_UPVALUE, OP_SET_UPVALUE:
+		slot := c.Code[offset+1]
+		fmt.Fprintf(sb, "<^%d>\n", slot)
+		return offset + 2
+	case OP_CLOSURE:
+		index := c.Code[offset+1]
+		fnVal := c.Constants[index]
+		fmt.Fprintf(sb, "<%s>\n", formatConstant(fnVal))
+		offset += 2
+		if fnVal.Fn != nil {
+			for i := 0; i < fnVal.Fn.UpvalueCount; i++ {
+				kind := "upvalue"
+				if c.Code[offset] == 1 {
+					kind = "local"
+				}
+				uvIndex := c.Code[offset+1]
+				fmt.Fprintf(sb, "%04d|      | %s %d\n", offset, kind, uvIndex)
+				offset += 2
+			}
+		}
+		return offset
 	case OP_JUMP, OP_JUMP_IF_FALSE:
 		fmt.Fprintf(sb, "<+%d>\n", c.ReadShort(offset+1)+3)
 		return offset + 3

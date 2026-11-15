@@ -11,6 +11,7 @@ const (
 	KindNumber
 	KindString
 	KindFunction
+	KindClosure
 	KindNative
 )
 
@@ -23,6 +24,7 @@ type (
 		Num  float64
 		Str  string
 		Fn   *Function
+		Clos *Closure
 		Nat  *Native
 	}
 )
@@ -45,6 +47,10 @@ func String(s string) Value {
 
 func FromFunction(fn *Function) Value {
 	return Value{Kind: KindFunction, Fn: fn}
+}
+
+func FromClosure(c *Closure) Value {
+	return Value{Kind: KindClosure, Clos: c}
 }
 
 func FromNative(nat *Native) Value {
@@ -108,6 +114,8 @@ func (v Value) Equals(other Value) bool {
 		return v.Str == other.Str
 	case KindFunction:
 		return v.Fn == other.Fn
+	case KindClosure:
+		return v.Clos == other.Clos
 	case KindNative:
 		return v.Nat == other.Nat
 	default:
@@ -130,6 +138,8 @@ func (v Value) String() string {
 		return v.Str
 	case KindFunction:
 		return v.Fn.String()
+	case KindClosure:
+		return v.Clos.String()
 	case KindNative:
 		return v.Nat.String()
 	default:

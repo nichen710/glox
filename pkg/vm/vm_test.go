@@ -385,3 +385,97 @@ func TestVM_FunctionErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestVM_ClosuresAndUpvalues(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"counter",
+			`fun makeCounter() {
+				var count = 0;
+				fun inc() {
+					count = count + 1;
+					return count;
+				}
+				return inc;
+			}
+			var c = makeCounter();
+			print c();
+			print c();`,
+			"1\n2\n",
+		},
+		{
+			"independent counters",
+			`fun makeCounter() {
+				var count = 0;
+				fun inc() {
+					count = count + 1;
+					return count;
+				}
+				return inc;
+			}
+			var a = makeCounter();
+			var b = makeCounter();
+			print a();
+			print a();
+			print b();`,
+			"1\n2\n1\n",
+		},
+		{
+			"nested upvalues",
+			`fun outer() {
+				var x = "outside";
+				fun middle() {
+					fun inner() {
+						print x;
+					}
+					return inner;
+				}
+				return middle;
+			}
+			var mid = outer();
+			var in = mid();
+			in();`,
+			"outside\n",
+		},
+		{
+			"shared open upvalue mutated",
+			`fun test() {
+				var a = 1;
+				fun get() { return a; }
+				fun set(v) { a = v; }
+				print get();
+				set(42);
+				print get();
+			}
+			test();`,
+			"1\n42\n",
+		},
+		{
+			"closed on block exit",
+			`var f;
+			{
+				var x = "block";
+				fun inner() { print x; }
+				f = inner;
+			}
+			f();`,
+			"block\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := runSource(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected runtime error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

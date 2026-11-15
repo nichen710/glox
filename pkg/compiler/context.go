@@ -2,21 +2,31 @@ package compiler
 
 const MaxLocals = 256
 
-type local struct {
-	name        string
-	depth       int
-	initialized bool
-}
+type (
+	local struct {
+		name        string
+		depth       int
+		initialized bool
+		captured    bool
+	}
 
-type CompilerContext struct {
-	scopeDepth int // 0 es el scope global
-	locals     []local
-}
+	upvalue struct {
+		index   byte
+		isLocal bool
+	}
+
+	CompilerContext struct {
+		scopeDepth int // 0 es el scope global
+		locals     []local
+		upvalues   []upvalue
+	}
+)
 
 func NewCompilerContext() *CompilerContext {
 	return &CompilerContext{
 		scopeDepth: 0,
 		locals:     make([]local, 0),
+		upvalues:   make([]upvalue, 0),
 	}
 }
 
@@ -28,16 +38,17 @@ func (ctx *CompilerContext) beginScope() {
 	ctx.scopeDepth++
 }
 
-// Saca las variables del scope que termina y devuelve cuantas eran
-func (ctx *CompilerContext) endScope() int {
+// Saca las variables del scope que termina y devuelve si cada una fue capturada
+func (ctx *CompilerContext) endScope() []bool {
 	ctx.scopeDepth--
 
-	removed := 0
+	captured := make([]bool, 0)
 	for len(ctx.locals) > 0 && ctx.locals[len(ctx.locals)-1].depth > ctx.scopeDepth {
+		last := ctx.locals[len(ctx.locals)-1]
 		ctx.locals = ctx.locals[:len(ctx.locals)-1]
-		removed++
+		captured = append(captured, last.captured)
 	}
-	return removed
+	return captured
 }
 
 func (ctx *CompilerContext) declare(name string) {
@@ -72,4 +83,17 @@ func (ctx *CompilerContext) resolve(name string) (int, *local) {
 		}
 	}
 	return -1, nil
+}
+
+func (ctx *CompilerContext) addUpvalue(index byte, isLocal bool) (int, bool) {
+	for i, uv := range ctx.upvalues {
+		if uv.index == index && uv.isLocal == isLocal {
+			return i, true
+		}
+	}
+	if len(ctx.upvalues) >= MaxLocals {
+		return 0, false
+	}
+	ctx.upvalues = append(ctx.upvalues, upvalue{index: index, isLocal: isLocal})
+	return len(ctx.upvalues) - 1, true
 }
